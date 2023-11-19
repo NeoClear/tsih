@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package demo;
+
+// The greeting service definition.
+service Echoer {
+  rpc Echo(EchoRequest) returns (EchoReply) {}
+
+  rpc EchoStreamReply(EchoRequest) returns (stream EchoReply) {}
+
+  rpc EchoBidiStream(stream EchoRequest) returns (stream EchoReply) {}
+}
+
+message EchoRequest { string name = 1; }
+
+message EchoReply { string msg = 1; }
