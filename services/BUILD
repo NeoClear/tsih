@@ -50,7 +50,21 @@ cc_library(
     hdrs = ["pinger.h"],
     deps = [
         ":ping_cc_grpc",
+        "//:config",
         "@com_google_absl//absl/container:flat_hash_map",
-        "//:config"
+    ],
+)
+
+cc_library(
+    name = "periodic",
+    hdrs = ["periodic.h"],
+)
+
+cc_library(
+    name = "ping_history",
+    hdrs = ["ping_history.h"],
+    deps = [
+        ":ping_cc_grpc",
+        "@com_google_absl//absl/container:flat_hash_set",
     ],
 )

@@ -1,7 +1,7 @@
 #include <iostream>
 #include <memory>
+#include <queue>
 #include <string>
-#include <thread>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
@@ -14,7 +14,12 @@
 
 #include "services/ping.grpc.pb.h"
 
+#include "master/master_application.h"
+#include "services/periodic.h"
+#include "services/ping_history.h"
 #include "services/pinger.h"
+
+#include <google/protobuf/util/message_differencer.h>
 
 #include "config.h"
 
@@ -28,69 +33,10 @@ using grpc::ServerBuilder;
 using grpc::ServerContext;
 using grpc::Status;
 
-class MasterService final : public PingTracker::Service,
-                            public services::Pinger {
-public:
-  MasterService(const uint16_t index, const uint16_t master_count)
-      : master_count_(master_count), identity_(initializeIdentity(index)) {}
-
-  Status Ping(ServerContext *context, const PingMessage *request,
-              google::protobuf::Empty *reply) override {
-    const services::ServerIdentity &sender = request->server_identity();
-
-    std::cout << "Received from "
-              << services::ServerType_Name(sender.server_type()) << ", "
-              << sender.server_index() << std::endl;
-    return Status::OK;
-  }
-
-private:
-  const uint16_t master_count_;
-  const services::ServerIdentity identity_;
-
-  static const services::ServerIdentity initializeIdentity(uint16_t index) {
-    services::ServerIdentity identity;
-    identity.set_server_type(services::MASTER);
-    identity.set_server_index(index);
-
-    return identity;
-  }
-
-public:
-  /**
-   * @brief Method that pings to all other masters
-   * 
-   */
-  void pings() override {
-    std::shared_ptr<services::PingerClient> client =
-        std::make_shared<services::PingerClient>(master_count_, identity_);
-
-    const auto pingLoop =
-        [](std::shared_ptr<services::PingerClient> ping_client) {
-          for (;;) {
-            try {
-              ping_client->ping();
-              std::this_thread::sleep_for(
-                  std::chrono::milliseconds(MASTER_PING_MILLS));
-            } catch (...) {
-              std::cerr << "Unable to ping" << std::endl;
-            }
-          }
-        };
-
-    try {
-      std::thread pingThread(pingLoop, client);
-      pingThread.detach();
-    } catch (...) {
-      std::cerr << "Unable to start ping" << std::endl;
-    }
-  }
-};
-
 void RunMaster(uint16_t index, uint16_t master_count) {
   std::string server_address =
       absl::StrFormat("0.0.0.0:%d", index + MASTER_BASE_PORT);
-  MasterService service(index, master_count);
+  application::MasterService service(index, master_count);
 
   grpc::EnableDefaultHealthCheckService(true);
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
@@ -104,8 +50,7 @@ void RunMaster(uint16_t index, uint16_t master_count) {
 
   std::cout << "Server listening on " << server_address << std::endl;
 
-  // Initiate a thread that periodically pings other servers
-  service.pings();
+  service.runPeriodicTasks();
 
   server->Wait();
 }
