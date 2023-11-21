@@ -29,19 +29,19 @@
 
 ABSL_FLAG(std::string, address, "localhost:50051", "Server address");
 
-using grpc::Channel;
-using grpc::ClientContext;
-using grpc::Status;
 using demo::Echoer;
 using demo::EchoReply;
 using demo::EchoRequest;
+using grpc::Channel;
+using grpc::ClientContext;
+using grpc::Status;
 
 class EchoClient {
- public:
+public:
   EchoClient(std::shared_ptr<Channel> channel)
       : stub_(Echoer::NewStub(channel)) {}
 
-  std::string echo(const std::string& user) {
+  std::string echo(const std::string &user) {
     EchoRequest request;
     request.set_name(user);
 
@@ -60,11 +60,11 @@ class EchoClient {
     }
   }
 
- private:
+private:
   std::unique_ptr<Echoer::Stub> stub_;
 };
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   absl::ParseCommandLine(argc, argv);
   std::string serverAddress = absl::GetFlag(FLAGS_address);
 
