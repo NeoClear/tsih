@@ -1,9 +1,14 @@
-cc_binary(
-    name = "monitor",
-    srcs = ["monitor.cc"],
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "master_application",
+    srcs = ["master_application.cc"],
+    hdrs = ["master_application.h"],
     deps = [
-        "//services:ping_cc_grpc",
-        "//services:pinger",
+        "//proto:api_cc_grpc",
+        "//stub:pinger",
+        "//utility:periodic",
+        "//utility:ping_history",
         "@com_github_grpc_grpc//:grpc++",
         "@com_github_grpc_grpc//:grpc++_reflection",
         "@com_google_absl//absl/container:flat_hash_map",

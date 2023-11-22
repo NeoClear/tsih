@@ -41,8 +41,8 @@ using grpc::Status;
 ABSL_FLAG(uint16_t, port, 50051, "Server port for the service");
 
 class EchoerServiceImpl final : public Echoer::Service {
-  Status Echo(ServerContext *context, const EchoRequest *request,
-              EchoReply *reply) override {
+  Status Echo(ServerContext* context, const EchoRequest* request,
+              EchoReply* reply) override {
     std::cout << "Receiving from " << request->name() << std::endl;
 
     reply->set_msg("Hello client!");
@@ -68,7 +68,7 @@ void RunServer(uint16_t port) {
   server->Wait();
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
   RunServer(absl::GetFlag(FLAGS_port));
   return 0;

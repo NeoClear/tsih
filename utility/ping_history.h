@@ -4,12 +4,12 @@
 
 #include "absl/container/flat_hash_set.h"
 
-#include "services/identity.grpc.pb.h"
+#include "proto/token.grpc.pb.h"
 
-namespace services {
+namespace utility {
 
 namespace detail {
-using PingHistoryElement = std::pair<services::ServerIdentity, uint64_t>;
+using PingHistoryElement = std::pair<token::ServerIdentity, uint64_t>;
 } // namespace detail
 
 class PingHistory {
@@ -32,7 +32,7 @@ private:
 public:
   explicit PingHistory(const uint64_t threshold) : threshold_(threshold) {}
 
-  void addPing(const services::ServerIdentity identity) {
+  void addPing(const token::ServerIdentity identity) {
     std::unique_lock lock(mux_);
 
     removeOutdatedPings();
@@ -48,7 +48,7 @@ public:
     absl::flat_hash_set<uint64_t> masterIndices;
 
     for (auto identity : ping_history_) {
-      if (identity.first.server_type() == services::MASTER) {
+      if (identity.first.server_type() == token::MASTER) {
         masterIndices.insert(identity.first.server_index());
       }
     }
@@ -64,7 +64,7 @@ public:
     absl::flat_hash_set<uint64_t> workerIndices;
 
     for (auto identity : ping_history_) {
-      if (identity.first.server_type() == services::WORKER) {
+      if (identity.first.server_type() == token::WORKER) {
         workerIndices.insert(identity.first.server_index());
       }
     }
@@ -78,4 +78,4 @@ private:
   std::mutex mux_;
 };
 
-} // namespace services
+} // namespace utility

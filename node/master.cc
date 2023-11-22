@@ -12,21 +12,21 @@
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
 
-#include "services/ping.grpc.pb.h"
+#include "proto/api.grpc.pb.h"
 
-#include "master/master_application.h"
-#include "services/periodic.h"
-#include "services/ping_history.h"
-#include "services/pinger.h"
+#include "application/master_application.h"
+#include "stub/pinger.h"
+#include "utility/periodic.h"
+#include "utility/ping_history.h"
 
 #include <google/protobuf/util/message_differencer.h>
 
 #include "config.h"
 
-using services::PingMessage;
-using services::PingTracker;
+using api::PingTracker;
+using token::PingMessage;
 
-using services::ServerIdentity;
+using token::ServerIdentity;
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -58,7 +58,7 @@ void RunMaster(uint16_t index, uint16_t master_count) {
 ABSL_FLAG(uint16_t, idx, 0, "Index of this master");
 ABSL_FLAG(uint16_t, master_count, 0, "Number of masters");
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
 
   RunMaster(absl::GetFlag(FLAGS_idx), absl::GetFlag(FLAGS_master_count));

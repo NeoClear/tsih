@@ -2,11 +2,11 @@ cc_binary(
     name = "master",
     srcs = ["master.cc"],
     deps = [
-        ":master_application",
-        "//services:periodic",
-        "//services:ping_cc_grpc",
-        "//services:ping_history",
-        "//services:pinger",
+        "//application:master_application",
+        "//proto:api_cc_grpc",
+        "//stub:pinger",
+        "//utility:periodic",
+        "//utility:ping_history",
         "@com_github_grpc_grpc//:grpc++",
         "@com_github_grpc_grpc//:grpc++_reflection",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -17,14 +17,11 @@ cc_binary(
     ],
 )
 
-cc_library(
-    name = "master_application",
-    srcs = ["master_application.cc"],
-    hdrs = ["master_application.h"],
+cc_binary(
+    name = "monitor",
+    srcs = ["monitor.cc"],
     deps = [
-        "//services:periodic",
         "//services:ping_cc_grpc",
-        "//services:ping_history",
         "//services:pinger",
         "@com_github_grpc_grpc//:grpc++",
         "@com_github_grpc_grpc//:grpc++_reflection",

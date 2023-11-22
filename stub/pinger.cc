@@ -1,16 +1,16 @@
-#include "services/pinger.h"
+#include "stub/pinger.h"
 
 #include "absl/container/flat_hash_set.h"
 
 #include "config.h"
 
 using grpc::ClientContext;
-using services::PingMessage;
+using token::PingMessage;
 
-namespace services {
+namespace stub {
 
-PingerClient::PingerClient(const uint16_t master_count,
-                           const ServerIdentity identity)
+PingerStub::PingerStub(const uint16_t master_count,
+                       const ServerIdentity identity)
     : identity_(identity) {
   for (uint16_t i = 0; i < master_count; ++i) {
     std::shared_ptr<Channel> channel = grpc::CreateChannel(
@@ -20,12 +20,12 @@ PingerClient::PingerClient(const uint16_t master_count,
   }
 }
 
-void PingerClient::ping() {
+void PingerStub::ping() {
   PingMessage pingMsg;
 
   pingMsg.mutable_server_identity()->CopyFrom(identity_);
 
-  for (const auto &stub : master_stubs_) {
+  for (const auto& stub : master_stubs_) {
     ClientContext context;
     google::protobuf::Empty empty;
 
@@ -33,4 +33,4 @@ void PingerClient::ping() {
   }
 }
 
-} // namespace services
+} // namespace stub

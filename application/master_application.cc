@@ -12,21 +12,15 @@
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
 
-#include "services/ping.grpc.pb.h"
+#include "proto/api.grpc.pb.h"
 
-#include "master/master_application.h"
-#include "services/periodic.h"
-#include "services/ping_history.h"
-#include "services/pinger.h"
+#include "application/master_application.h"
 
 #include <google/protobuf/util/message_differencer.h>
 
 #include "config.h"
 
-using services::PingMessage;
-using services::PingTracker;
-
-using services::ServerIdentity;
+using token::ServerIdentity;
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -41,27 +35,26 @@ MasterService::MasterService(const uint16_t index, const uint16_t master_count)
   setupPeriodicTasks();
 }
 
-Status MasterService::Ping(ServerContext *context, const PingMessage *request,
-                           google::protobuf::Empty *reply) {
-  services::ServerIdentity sender = request->server_identity();
+Status MasterService::Ping(ServerContext* context, const PingMessage* request,
+                           google::protobuf::Empty* reply) {
+  token::ServerIdentity sender = request->server_identity();
 
   ping_history_.addPing(sender);
 
   return Status::OK;
 }
 
-const services::ServerIdentity
-MasterService::initializeIdentity(uint16_t index) {
-  services::ServerIdentity identity;
-  identity.set_server_type(services::MASTER);
+const token::ServerIdentity MasterService::initializeIdentity(uint16_t index) {
+  token::ServerIdentity identity;
+  identity.set_server_type(token::MASTER);
   identity.set_server_index(index);
 
   return identity;
 }
 
 void MasterService::pingMasters() {
-  std::shared_ptr<services::PingerClient> client =
-      std::make_shared<services::PingerClient>(master_count_, identity_);
+  std::shared_ptr<stub::PingerStub> client =
+      std::make_shared<stub::PingerStub>(master_count_, identity_);
 
   client->ping();
 }

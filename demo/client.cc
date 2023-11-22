@@ -41,7 +41,7 @@ public:
   EchoClient(std::shared_ptr<Channel> channel)
       : stub_(Echoer::NewStub(channel)) {}
 
-  std::string echo(const std::string &user) {
+  std::string echo(const std::string& user) {
     EchoRequest request;
     request.set_name(user);
 
@@ -64,7 +64,7 @@ private:
   std::unique_ptr<Echoer::Stub> stub_;
 };
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
   std::string serverAddress = absl::GetFlag(FLAGS_address);
 

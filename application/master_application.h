@@ -14,20 +14,20 @@
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
 
-#include "services/ping.grpc.pb.h"
+#include "proto/api.grpc.pb.h"
 
-#include "services/periodic.h"
-#include "services/ping_history.h"
-#include "services/pinger.h"
+#include "stub/pinger.h"
+#include "utility/periodic.h"
+#include "utility/ping_history.h"
 
 #include <google/protobuf/util/message_differencer.h>
 
 #include "config.h"
 
-using services::PingMessage;
-using services::PingTracker;
+using api::PingTracker;
+using token::PingMessage;
 
-using services::ServerIdentity;
+using token::ServerIdentity;
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -36,19 +36,20 @@ using grpc::Status;
 
 namespace application {
 
-class MasterService final : public PingTracker::Service, public Periodic {
+class MasterService final : public PingTracker::Service,
+                            public utility::Periodic {
 public:
   MasterService(const uint16_t index, const uint16_t master_count);
 
-  Status Ping(ServerContext *context, const PingMessage *request,
-              google::protobuf::Empty *reply) override;
+  Status Ping(ServerContext* context, const PingMessage* request,
+              google::protobuf::Empty* reply) override;
 
 private:
   const uint16_t master_count_;
-  const services::ServerIdentity identity_;
-  services::PingHistory ping_history_;
+  const token::ServerIdentity identity_;
+  utility::PingHistory ping_history_;
 
-  static const services::ServerIdentity initializeIdentity(uint16_t index);
+  static const token::ServerIdentity initializeIdentity(uint16_t index);
 
   void pingMasters();
 

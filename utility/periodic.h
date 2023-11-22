@@ -3,6 +3,8 @@
 #include <functional>
 #include <thread>
 
+namespace utility {
+
 class Periodic {
 protected:
   /**
@@ -18,7 +20,7 @@ public:
    * @brief Called outside of the class to initiate all tasks, thus public
    */
   void runPeriodicTasks() {
-    for (const auto &[task, millsecond] : periodicTasks) {
+    for (const auto& [task, millsecond] : periodicTasks) {
       const auto taskRunner = [](std::shared_ptr<std::function<void()>> task,
                                  const uint64_t millsecond) {
         for (;;) {
@@ -32,7 +34,7 @@ public:
   }
 
   ~Periodic() {
-    for (std::thread &periodic : periodicThreads) {
+    for (std::thread& periodic : periodicThreads) {
       if (periodic.joinable()) {
         periodic.join();
       }
@@ -45,3 +47,5 @@ private:
 
   std::vector<std::thread> periodicThreads;
 };
+
+} // namespace utility

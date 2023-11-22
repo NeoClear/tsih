@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+import "proto/token.proto";
+
+package api;
+
+service PingTracker {
+  rpc Ping(token.PingMessage) returns (google.protobuf.Empty) {}
+}
