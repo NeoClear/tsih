@@ -16,6 +16,7 @@
 
 #include "proto/api.grpc.pb.h"
 
+#include "application/raft_application.h"
 #include "stub/pinger.h"
 #include "utility/periodic.h"
 #include "utility/ping_history.h"
@@ -36,8 +37,7 @@ using grpc::Status;
 
 namespace application {
 
-class MasterService final : public PingTracker::Service,
-                            public utility::Periodic {
+class MasterService final : public PingTracker::Service, utility::Periodic {
 public:
   MasterService(const uint16_t index, const uint16_t master_count);
 

@@ -3,6 +3,7 @@ cc_binary(
     srcs = ["master.cc"],
     deps = [
         "//application:master_application",
+        "//application:raft_application",
         "//proto:api_cc_grpc",
         "//stub:pinger",
         "//utility:periodic",

@@ -9,3 +9,18 @@ package api;
 service PingTracker {
   rpc Ping(token.PingMessage) returns (google.protobuf.Empty) {}
 }
+
+/**
+ * Raft APIs defined by the paper
+ */
+service RaftService {
+  rpc AppendEntriesRequest(token.AppendEntriesArgument)
+      returns (google.protobuf.Empty) {}
+  rpc AppendEntriesReply(token.AppendEntriesResult)
+      returns (google.protobuf.Empty) {}
+
+  rpc RequestVoteRequest(token.RequestVoteArgument)
+      returns (google.protobuf.Empty) {}
+  rpc RequestVoteReply(token.RequestVoteResult)
+      returns (google.protobuf.Empty) {}
+}

@@ -14,7 +14,8 @@
 
 #include "proto/api.grpc.pb.h"
 
-#include "application/master_application.h"
+// #include "application/master_application.h"
+#include "application/raft_application.h"
 #include "stub/pinger.h"
 #include "utility/periodic.h"
 #include "utility/ping_history.h"
@@ -33,10 +34,10 @@ using grpc::ServerBuilder;
 using grpc::ServerContext;
 using grpc::Status;
 
-void RunMaster(uint16_t index, uint16_t master_count) {
+void RunMaster(uint64_t index, uint64_t master_count) {
   std::string server_address =
       absl::StrFormat("0.0.0.0:%d", index + MASTER_BASE_PORT);
-  application::MasterService service(index, master_count);
+  application::RaftServiceImpl service(master_count, index);
 
   grpc::EnableDefaultHealthCheckService(true);
   grpc::reflection::InitProtoReflectionServerBuilderPlugin();
@@ -50,7 +51,7 @@ void RunMaster(uint16_t index, uint16_t master_count) {
 
   std::cout << "Server listening on " << server_address << std::endl;
 
-  service.runPeriodicTasks();
+  // service.runPeriodicTasks();
 
   server->Wait();
 }
@@ -58,7 +59,7 @@ void RunMaster(uint16_t index, uint16_t master_count) {
 ABSL_FLAG(uint16_t, idx, 0, "Index of this master");
 ABSL_FLAG(uint16_t, master_count, 0, "Number of masters");
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   absl::ParseCommandLine(argc, argv);
 
   RunMaster(absl::GetFlag(FLAGS_idx), absl::GetFlag(FLAGS_master_count));

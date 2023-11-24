@@ -13,3 +13,9 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_set",
     ],
 )
+
+cc_library(
+    name = "deadliner",
+    srcs = ["deadliner.cc"],
+    hdrs = ["deadliner.h"],
+)
