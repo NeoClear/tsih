@@ -14,9 +14,9 @@
 
 #include "proto/api.grpc.pb.h"
 
-// #include "application/master_application.h"
 #include "application/raft_application.h"
 #include "stub/pinger.h"
+#include "utility/logger.h"
 #include "utility/periodic.h"
 #include "utility/ping_history.h"
 
@@ -49,9 +49,7 @@ void RunMaster(uint64_t index, uint64_t master_count) {
 
   std::unique_ptr<Server> server(builder.BuildAndStart());
 
-  std::cout << "Server listening on " << server_address << std::endl;
-
-  // service.runPeriodicTasks();
+  utility::logInfo("Server listening on %s", server_address);
 
   server->Wait();
 }
@@ -59,7 +57,7 @@ void RunMaster(uint64_t index, uint64_t master_count) {
 ABSL_FLAG(uint16_t, idx, 0, "Index of this master");
 ABSL_FLAG(uint16_t, master_count, 0, "Number of masters");
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
 
   RunMaster(absl::GetFlag(FLAGS_idx), absl::GetFlag(FLAGS_master_count));

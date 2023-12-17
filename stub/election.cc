@@ -2,6 +2,8 @@
 
 #include "absl/container/flat_hash_set.h"
 
+#include "utility/logger.h"
+
 #include "config.h"
 
 using grpc::ClientContext;
@@ -39,30 +41,9 @@ void ElectionStub::initiateElection() {
     std::unique_ptr<api::RaftService::Stub> stub =
         api::RaftService::NewStub(channel);
     grpc::Status status = stub->RequestVoteRequest(&context, request, &empty);
-    std::cout << "Status " << status.ok() << std::endl;
+
+    utility::logInfo("Status: %u", status.ok());
   }
-
-  // for (const auto &raft_stub : raft_stubs_) {
-  //   ClientContext context;
-  //   google::protobuf::Empty empty;
-
-  //   std::cout << "Sending request to " << raft_stub.get() << std::endl;
-
-  //   raft_stub->RequestVoteRequest(&context, request, nullptr);
-  // }
 }
-
-// void PingerStub::ping() {
-//   PingMessage pingMsg;
-
-//   pingMsg.mutable_server_identity()->CopyFrom(identity_);
-
-//   for (const auto &stub : master_stubs_) {
-//     ClientContext context;
-//     google::protobuf::Empty empty;
-
-//     grpc::Status status = stub->Ping(&context, pingMsg, &empty);
-//   }
-// }
 
 } // namespace stub

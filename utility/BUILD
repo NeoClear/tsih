@@ -19,3 +19,12 @@ cc_library(
     srcs = ["deadliner.cc"],
     hdrs = ["deadliner.h"],
 )
+
+cc_library(
+    name = "logger",
+    srcs = ["logger.cc"],
+    hdrs = ["logger.h"],
+    deps = [
+        "@com_google_absl//absl/strings:str_format",
+    ],
+)

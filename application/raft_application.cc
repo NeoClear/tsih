@@ -1,5 +1,6 @@
 #include "application/raft_application.h"
 #include "stub/election.h"
+#include "utility/logger.h"
 
 namespace application {
 
@@ -47,12 +48,16 @@ void RaftState::leaderElection() {
 }
 
 void RaftState::incTerm() {
+  granted = 0;
   votedFor.reset();
   currentTerm++;
+  utility::logInfo("Term incremented %p", this);
 }
 
 void RaftState::updateTerm(const uint64_t newTerm) {
   assert(newTerm > currentTerm);
+
+  granted = 0;
   votedFor.reset();
   currentTerm = newTerm;
 }
@@ -123,7 +128,6 @@ Status RaftServiceImpl::AppendEntriesReply(ServerContext *context,
 Status RaftServiceImpl::RequestVoteRequest(ServerContext *context,
                                            const RequestVoteArgument *request,
                                            google::protobuf::Empty *reply) {
-
   if (request->term() < raft_state_.currentTerm) {
     // Would not vote for outdated term number
     // Send reject message back
@@ -132,6 +136,8 @@ Status RaftServiceImpl::RequestVoteRequest(ServerContext *context,
     return Status::OK;
   } else if (request->term() == raft_state_.currentTerm) {
     // The voting request is the same as current term
+
+    utility::logInfo("Staying at same term number %u", raft_state_.currentTerm);
 
     switch (raft_state_.role_) {
     case RaftRole::RAFT_LEADER:
@@ -164,6 +170,8 @@ Status RaftServiceImpl::RequestVoteRequest(ServerContext *context,
     }
 
   } else {
+    utility::logInfo("Advancing to term number %u", request->term());
+
     // Larger term number
     switch (raft_state_.role_) {
     case RaftRole::RAFT_LEADER:
@@ -172,11 +180,19 @@ Status RaftServiceImpl::RequestVoteRequest(ServerContext *context,
       raft_state_.switchToFollower();
       raft_state_.votedFor = request->candidateid();
 
+      // Voted
+      stub::ElectionStub::replyTo(request->candidateid(), request->term(),
+                                  true);
+
       break;
     case RaftRole::RAFT_FOLLOWER:
       // Already a follower, update the term number and grant it if not granted
       raft_state_.updateTerm(request->term());
       raft_state_.votedFor = request->candidateid();
+
+      // Voted
+      stub::ElectionStub::replyTo(request->candidateid(), request->term(),
+                                  true);
 
       break;
     case RaftRole::RAFT_CANDIDATE:
@@ -185,13 +201,17 @@ Status RaftServiceImpl::RequestVoteRequest(ServerContext *context,
       raft_state_.switchToFollower();
       raft_state_.votedFor = request->candidateid();
 
+      // Voted
+      stub::ElectionStub::replyTo(request->candidateid(), request->term(),
+                                  true);
+
       break;
     default:
       throw std::runtime_error("Unrecognized RaftRole");
     }
   }
 
-  std::cout << "I am " << raft_state_.toString() << std::endl;
+  utility::logInfo("Raft state: %s", raft_state_.toString());
 
   return Status::OK;
 }
@@ -199,6 +219,44 @@ Status RaftServiceImpl::RequestVoteRequest(ServerContext *context,
 Status RaftServiceImpl::RequestVoteReply(ServerContext *context,
                                          const RequestVoteResult *request,
                                          google::protobuf::Empty *reply) {
+  utility::logInfo("Received reply: %s",
+                   (request->votegranted() ? "granted" : "rejected"));
+  // utility::logInfo("%d", request->term());
+  // utility::logInfo("%p", &raft_state_);
+  
+
+  if (request->term() < raft_state_.currentTerm) {
+    // Expired replies
+    // Ignore
+  } else if (request->term() == raft_state_.currentTerm) {
+    if (request->votegranted()) {
+      raft_state_.granted++;
+      utility::logInfo("Visited");
+    }
+
+    switch (raft_state_.role_) {
+    case RaftRole::RAFT_LEADER:
+      // Already a leader, do not care about replies
+      break;
+    case RaftRole::RAFT_FOLLOWER:
+      // No idea why we have this branch
+      break;
+    case RaftRole::RAFT_CANDIDATE:
+      if ((raft_state_.granted + 1) * 2 > raft_state_.raft_size_) {
+        // Getting majority, switch to leader
+        raft_state_.switchToLeader();
+      }
+      break;
+    default:
+      throw std::runtime_error("Invalid role");
+      break;
+    }
+  } else {
+    // Getting reply from future term number. Is it even possible?
+    throw std::runtime_error("Getting future term number");
+    utility::logInfo("Impossible");
+  }
+
   return Status::OK;
 }
 

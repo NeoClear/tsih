@@ -29,6 +29,7 @@ cc_library(
         "//stub:election",
         "//stub:pinger",
         "//utility:deadliner",
+        "//utility:logger",
         "//utility:periodic",
         "//utility:ping_history",
         "@com_github_grpc_grpc//:grpc++",

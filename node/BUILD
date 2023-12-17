@@ -6,6 +6,7 @@ cc_binary(
         "//application:raft_application",
         "//proto:api_cc_grpc",
         "//stub:pinger",
+        "//utility:logger",
         "//utility:periodic",
         "//utility:ping_history",
         "@com_github_grpc_grpc//:grpc++",

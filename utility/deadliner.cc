@@ -1,5 +1,6 @@
 #include "utility/deadliner.h"
-#include <iostream>
+
+#include <random>
 
 namespace utility {
 
@@ -8,9 +9,6 @@ Deadliner::Deadliner(const std::function<void()> &fn)
       deadline_(0ull), notifier_([]() {}) {}
 
 void Deadliner::setDeadline(uint64_t millsecond) {
-
-  std::cout << "WTF" << std::endl;
-
   std::unique_lock lock(mux_);
 
   uint64_t newDeadline =
@@ -33,13 +31,21 @@ void Deadliner::setDeadline(uint64_t millsecond) {
   }
 }
 
+void Deadliner::setRandomDeadline(uint64_t lowerBound, uint64_t upperBound) {
+  std::random_device randDev;
+  std::mt19937 rng(randDev());
+  std::uniform_int_distribution<std::mt19937::result_type> distribution(
+      lowerBound, upperBound);
+
+  setDeadline(distribution(rng));
+}
+
 void Deadliner::notifyThread() {
   for (;;) {
 
     uint64_t durationDiff;
 
     {
-      std::cout << "What the fuck" << std::endl;
       std::unique_lock lock(mux_);
 
       uint64_t currentTime =

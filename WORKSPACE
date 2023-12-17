@@ -17,6 +17,7 @@ rules_proto_toolchains()
 
 http_archive(
     name = "com_github_grpc_grpc",
+    sha256 = "1ab949c8af4a14c77535a2796166d6930c4e89d312c81da1c1fc6092c62b389a",
     strip_prefix = "grpc-35df344f5e17a9cb290ebf0f5b0f03ddb1ff0a97",
     urls = [
         "https://github.com/grpc/grpc/archive/35df344f5e17a9cb290ebf0f5b0f03ddb1ff0a97.tar.gz",

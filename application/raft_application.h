@@ -5,6 +5,7 @@
 #include <queue>
 #include <random>
 #include <string>
+#include <string_view>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/flags/flag.h"
@@ -19,6 +20,7 @@
 
 #include "stub/pinger.h"
 #include "utility/deadliner.h"
+#include "utility/logger.h"
 #include "utility/ping_history.h"
 
 #include <google/protobuf/util/message_differencer.h>
@@ -48,6 +50,18 @@ enum class RaftRole {
   RAFT_CANDIDATE = 2,
 };
 
+constexpr std::string_view roleToSV(RaftRole role) {
+  using namespace std::literals;
+  switch (role) {
+  case RaftRole::RAFT_LEADER:
+    return "RAFT_LEADER"sv;
+  case RaftRole::RAFT_FOLLOWER:
+    return "RAFT_FOLLOWER"sv;
+  case RaftRole::RAFT_CANDIDATE:
+    return "RAFT_CANDIDATE"sv;
+  }
+}
+
 /**
  * @brief Class that keeps the state of raft data structures
  *
@@ -68,12 +82,19 @@ struct RaftState {
   std::vector<uint64_t> matchIndex;
 
   uint64_t candidate_idx_;
+
+  /**
+   * @brief Number of other raft nodes that granted vote for current node
+   * OTHER NODES! Does not include itself
+   */
+  uint64_t granted;
+
   uint64_t raft_size_;
   RaftRole role_;
 
   explicit RaftState(uint64_t raft_size, uint64_t candidate_idx)
       : currentTerm(0), commitIndex(0), lastApplied(0),
-        candidate_idx_(candidate_idx), raft_size_(raft_size),
+        candidate_idx_(candidate_idx), granted(0u), raft_size_(raft_size),
         role_(RaftRole::RAFT_CANDIDATE) {}
 
   /**
@@ -84,8 +105,9 @@ struct RaftState {
       return;
     }
 
-    // nextIndex.swap(std::vector<uint64_t>(raft_size_, 0));
+    role_ = RaftRole::RAFT_LEADER;
     matchIndex = std::vector<uint64_t>(raft_size_, 0ull);
+    utility::logInfo("Become leader on term %u", currentTerm);
   }
 
   void switchToFollower() {
@@ -94,9 +116,18 @@ struct RaftState {
     }
 
     // Start the timeout
+    role_ = RaftRole::RAFT_FOLLOWER;
   }
 
-  void switchToCandidate() {}
+  void switchToCandidate() {
+    if (role_ == RaftRole::RAFT_CANDIDATE) {
+      return;
+    }
+
+    role_ = RaftRole::RAFT_CANDIDATE;
+
+    // Restart deadliner
+  }
 
   // Append entries to log
   bool appendEntries(
@@ -110,7 +141,7 @@ struct RaftState {
   void updateTerm(const uint64_t newTerm);
 
   std::string toString() const {
-    return absl::StrFormat("Role: %d, term: %d", role_, currentTerm);
+    return absl::StrFormat("Role: %s, term: %d", roleToSV(role_), currentTerm);
   }
 };
 
@@ -118,13 +149,10 @@ class RaftServiceImpl : public api::RaftService::Service {
 public:
   explicit RaftServiceImpl(uint64_t raft_size, uint64_t candidate_idx)
       : raft_state_(raft_size, candidate_idx),
-        leaderTimeout(std::bind(&RaftState::leaderElection, raft_state_)) {
+        leaderTimeout(
+            std::bind(&RaftState::leaderElection, std::ref(raft_state_))) {
 
-    std::random_device randDev;
-    std::mt19937 rng(randDev());
-    std::uniform_int_distribution<std::mt19937::result_type> distribution(150,
-                                                                          300);
-    leaderTimeout.setDeadline(distribution(rng));
+    leaderTimeout.setRandomDeadline(150, 300);
   }
 
   Status AppendEntriesRequest(ServerContext *context,
