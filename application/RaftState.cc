@@ -40,7 +40,7 @@ void RaftState::switchToCandidate() {
 
 bool RaftState::appendEntries(
     uint64_t prevLogIndex, uint64_t prevLogTerm,
-    const google::protobuf::RepeatedPtrField<token::LogEntry> &appendLogs) {
+    const google::protobuf::RepeatedPtrField<token::LogEntry>& appendLogs) {
   assert(role_ == RaftRole::RAFT_FOLLOWER);
 
   bool match =
@@ -133,60 +133,49 @@ void RaftState::leaderPeriodicCallback() {
     if (role_ != RaftRole::RAFT_LEADER) {
       return;
     }
-
-    // utility::logInfo("Leader heartbeating");
   }
 
   // Send to all followers a ping message
-  token::ServerIdentity identity;
-  identity.set_server_type(token::MASTER);
-  identity.set_server_index(candidate_idx_);
-  stub::PingStub stub(raft_size_, identity);
-  stub.ping();
+  ping_stub_.ping();
 
   leader_periodic_.setDeadline(100);
 }
 
-void RaftState::handleAppendEntries(
+std::pair<uint64_t, bool> RaftState::handleAppendEntries(
     uint64_t term, uint64_t leaderId, int64_t prevLogIndex,
     uint64_t prevLogTerm,
-    const google::protobuf::RepeatedPtrField<token::LogEntry> &entries,
+    const google::protobuf::RepeatedPtrField<token::LogEntry>& entries,
     uint64_t leaderCommit) {
   std::unique_lock lock(mux_);
 
   // Received outdated append request, reject the request
   if (term < current_term_) {
-    // @TODO(Send reply)
-    // return Status::OK;
-    return;
+    return {current_term_, false};
   }
 
-  if (term >= current_term_) {
-    current_term_ = term;
-    switchToFollower();
+  if (term > current_term_) {
+    updateTerm(term);
   }
+
+  switchToFollower();
 
   // At this stage, request term and local term are equal
   // No need to consider invalid requests
   switch (role_) {
   case RaftRole::RAFT_LEADER:
     throw std::runtime_error("No two leader within the same term");
-    break;
   case RaftRole::RAFT_FOLLOWER: {
     bool success = appendEntries(prevLogIndex, prevLogTerm, entries);
 
-    // TODO: send reply
-    // reply->set_success(success);
-    // reply->set_term(raft_state_.currentTerm);
-
     // Reset a timeout
     follower_timeout_.setRandomDeadline(500);
+
+    return {current_term_, success};
   }
 
   break;
   case RaftRole::RAFT_CANDIDATE:
     throw std::runtime_error("Cannot be RAFT_CANDIDATE at this stage");
-    break;
   default:
     throw std::runtime_error("Unrecognized RaftRole");
   }
@@ -257,7 +246,6 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
       voted_for_ = candidateId;
 
       // Voted
-      // stub::ElectionStub::replyTo(candidateId, term, true);
       return {current_term_, true};
 
       // break;
@@ -268,9 +256,6 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
       voted_for_ = candidateId;
 
       // Voted
-      // stub::ElectionStub::replyTo(candidateId, term, true);
-
-      // break;
       return {current_term_, true};
     default:
       throw std::runtime_error("Unrecognized RaftRole");
@@ -341,7 +326,11 @@ void RaftState::handleAddTask(std::string task) {
 
   utility::logInfo("Handling %s", task);
 
-  // Try to replicate the log to other servers
+  // Replicate the log to other servers
+
+  // For current thread, simply append to log entry, and a background thread
+  // would handle that
+  log_.emplace_back(task, current_term_);
 }
 
 } // namespace application

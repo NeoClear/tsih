@@ -54,7 +54,7 @@ void inline logError(const absl::FormatSpec<Args...>& formatString,
 
 template <typename... Args>
 void inline logCrit(const absl::FormatSpec<Args...>& formatString,
-                     const Args&... args) {
+                    const Args&... args) {
   absl::FPrintF(stderr, "%s [%s]: %s\n", logType2StringView(LOG_TYPE::CRIT),
                 now(), absl::StrFormat(formatString, args...));
 }

@@ -23,3 +23,15 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
+
+cc_library(
+    name = "AppendStub",
+    srcs = ["AppendStub.cc"],
+    hdrs = ["AppendStub.h"],
+    deps = [
+        "//:config",
+        "//proto:api_cc_grpc",
+        "//utility:Logger",
+        "@com_google_absl//absl/container:flat_hash_map",
+    ],
+)

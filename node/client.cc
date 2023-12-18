@@ -42,13 +42,13 @@ public:
     }
   }
 
-  void addTask(const std::string &task) {
+  void addTask(const std::string& task) {
     Task request;
     request.set_value(task);
 
     google::protobuf::Empty empty;
 
-    for (const std::unique_ptr<RaftService::Stub> &stub : stubs_) {
+    for (const std::unique_ptr<RaftService::Stub>& stub : stubs_) {
       ClientContext context;
       stub->AddTask(&context, request, &empty);
     }
@@ -58,7 +58,7 @@ private:
   std::vector<std::unique_ptr<RaftService::Stub>> stubs_;
 };
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   TaskClient client(3);
 
   client.addTask("WHAT THE FUCK");

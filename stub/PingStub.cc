@@ -10,12 +10,12 @@ using token::PingMessage;
 
 namespace stub {
 
-PingStub::PingStub(const uint16_t master_count, const ServerIdentity identity)
-    : identity_(identity) {
+PingStub::PingStub(const uint16_t master_count, const token::ServerType type,
+                   const uint64_t candidateIdx)
+    : type_(type), candidate_idx_(candidateIdx) {
   for (uint16_t i = 0; i < master_count; ++i) {
     // Never send to yourself
-    if (identity.server_type() == token::ServerType::MASTER &&
-        identity.server_index() == i) {
+    if (type_ == token::ServerType::MASTER && candidate_idx_ == i) {
       continue;
     }
 
@@ -29,7 +29,12 @@ PingStub::PingStub(const uint16_t master_count, const ServerIdentity identity)
 void PingStub::ping() {
   PingMessage pingMsg;
 
-  pingMsg.mutable_server_identity()->CopyFrom(identity_);
+  token::ServerIdentity identity;
+
+  identity.set_server_type(type_);
+  identity.set_server_index(candidate_idx_);
+
+  pingMsg.mutable_server_identity()->CopyFrom(identity);
 
   for (const auto& stub : master_stubs_) {
     ClientContext context;

@@ -19,7 +19,9 @@
 
 #include "proto/api.grpc.pb.h"
 
+#include "stub/AppendStub.h"
 #include "stub/PingStub.h"
+
 #include "utility/Deadliner.h"
 #include "utility/Logger.h"
 #include "utility/PingHistory.h"
@@ -115,6 +117,9 @@ private:
    */
   utility::Deadliner leader_periodic_;
 
+  stub::PingStub ping_stub_;
+  stub::AppendStub append_stub_;
+
   /**
    * @brief Called when switched to leader
    */
@@ -146,7 +151,9 @@ public:
         role_(RaftRole::RAFT_CANDIDATE),
         candidate_timeout_(std::bind(&RaftState::leaderElection, this)),
         follower_timeout_(std::bind(&RaftState::followerTimeoutCallback, this)),
-        leader_periodic_(std::bind(&RaftState::leaderPeriodicCallback, this)) {
+        leader_periodic_(std::bind(&RaftState::leaderPeriodicCallback, this)),
+        ping_stub_(raft_size_, token::ServerType::MASTER, candidate_idx_),
+        append_stub_(raft_size_) {
     candidate_timeout_.setRandomDeadline(300, 500);
   }
 
@@ -156,10 +163,9 @@ public:
   }
 
   /**
-   * @brief Handle append entries request to raft core
-   *
+   * @brief Handle append entries request to raft state
    */
-  void handleAppendEntries(
+  std::pair<uint64_t, bool> handleAppendEntries(
       uint64_t term, uint64_t leaderId, int64_t prevLogIndex,
       uint64_t prevLogTerm,
       const google::protobuf::RepeatedPtrField<token::LogEntry>& entries,

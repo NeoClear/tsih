@@ -5,19 +5,19 @@
 namespace application {
 
 Status
-RaftServiceImpl::AppendEntriesRequest(ServerContext *context,
-                                      const AppendEntriesArgument *request,
-                                      google::protobuf::Empty *reply) {
-  raft_state_.handleAppendEntries(
+RaftServiceImpl::AppendEntriesRequest(ServerContext* context,
+                                      const AppendEntriesArgument* request,
+                                      google::protobuf::Empty* reply) {
+  const auto [currentTerm, success] = raft_state_.handleAppendEntries(
       request->term(), request->leaderid(), request->prevlogindex(),
       request->prevlogterm(), request->entries(), request->leadercommit());
 
   return Status::OK;
 }
 
-Status RaftServiceImpl::AppendEntriesReply(ServerContext *context,
-                                           const AppendEntriesResult *request,
-                                           google::protobuf::Empty *reply) {
+Status RaftServiceImpl::AppendEntriesReply(ServerContext* context,
+                                           const AppendEntriesResult* request,
+                                           google::protobuf::Empty* reply) {
   return Status::OK;
 }
 
@@ -29,9 +29,9 @@ Status RaftServiceImpl::AppendEntriesReply(ServerContext *context,
  * @param reply Vote result
  * @return Status
  */
-Status RaftServiceImpl::RequestVoteRequest(ServerContext *context,
-                                           const RequestVoteArgument *request,
-                                           google::protobuf::Empty *reply) {
+Status RaftServiceImpl::RequestVoteRequest(ServerContext* context,
+                                           const RequestVoteArgument* request,
+                                           google::protobuf::Empty* reply) {
   const auto [currentTerm, result] = raft_state_.handleVoteRequest(
       request->term(), request->candidateid(), request->lastlogindex(),
       request->lastlogterm());
@@ -41,23 +41,23 @@ Status RaftServiceImpl::RequestVoteRequest(ServerContext *context,
   return Status::OK;
 }
 
-Status RaftServiceImpl::RequestVoteReply(ServerContext *context,
-                                         const RequestVoteResult *request,
-                                         google::protobuf::Empty *reply) {
+Status RaftServiceImpl::RequestVoteReply(ServerContext* context,
+                                         const RequestVoteResult* request,
+                                         google::protobuf::Empty* reply) {
   raft_state_.handleVoteReply(request->term(), request->votegranted());
 
   return Status::OK;
 }
 
-Status RaftServiceImpl::Ping(ServerContext *context, const PingMessage *request,
-                             google::protobuf::Empty *reply) {
+Status RaftServiceImpl::Ping(ServerContext* context, const PingMessage* request,
+                             google::protobuf::Empty* reply) {
   raft_state_.handlePingMsg(request->server_identity().server_type(),
                             request->server_identity().server_index());
   return Status::OK;
 }
 
-Status RaftServiceImpl::AddTask(ServerContext *context, const Task *request,
-                                google::protobuf::Empty *reply) {
+Status RaftServiceImpl::AddTask(ServerContext* context, const Task* request,
+                                google::protobuf::Empty* reply) {
   raft_state_.handleAddTask(request->value());
   return Status::OK;
 }

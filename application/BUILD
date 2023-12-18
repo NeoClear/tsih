@@ -28,6 +28,7 @@ cc_library(
     hdrs = ["RaftState.h"],
     deps = [
         "//proto:api_cc_grpc",
+        "//stub:AppendStub",
         "//stub:ElectionStub",
         "//stub:PingStub",
         "//utility:Deadliner",
