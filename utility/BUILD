@@ -1,11 +1,6 @@
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
-    name = "periodic",
-    hdrs = ["periodic.h"],
-)
-
-cc_library(
     name = "PingHistory",
     hdrs = ["PingHistory.h"],
     deps = [

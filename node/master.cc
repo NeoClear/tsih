@@ -18,7 +18,6 @@
 #include "stub/PingStub.h"
 #include "utility/Logger.h"
 #include "utility/PingHistory.h"
-#include "utility/periodic.h"
 
 #include <google/protobuf/util/message_differencer.h>
 
