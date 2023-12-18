@@ -187,6 +187,8 @@ public:
   void handleVoteReply(uint64_t term, bool voteGranted);
 
   void handlePingMsg(token::ServerType senderType, uint64_t senderIdx);
+
+  void handleAddTask(std::string task);
 };
 
 } // namespace application

@@ -25,4 +25,6 @@ service RaftService {
       returns (google.protobuf.Empty) {}
 
   rpc Ping(token.PingMessage) returns (google.protobuf.Empty) {}
+
+  rpc AddTask(token.Task) returns (google.protobuf.Empty) {}
 }

@@ -39,6 +39,7 @@ using token::PingMessage;
 using token::RequestVoteArgument;
 using token::RequestVoteResult;
 using token::ServerIdentity;
+using token::Task;
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -52,20 +53,22 @@ public:
   explicit RaftServiceImpl(uint64_t raft_size, uint64_t candidate_idx)
       : raft_state_(raft_size, candidate_idx) {}
 
-  Status AppendEntriesRequest(ServerContext* context,
-                              const AppendEntriesArgument* request,
-                              google::protobuf::Empty* reply);
-  Status AppendEntriesReply(ServerContext* context,
-                            const AppendEntriesResult* request,
-                            google::protobuf::Empty* reply);
-  Status RequestVoteRequest(ServerContext* context,
-                            const RequestVoteArgument* request,
-                            google::protobuf::Empty* reply);
-  Status RequestVoteReply(ServerContext* context,
-                          const RequestVoteResult* request,
-                          google::protobuf::Empty* reply);
-  Status Ping(ServerContext* context, const PingMessage* request,
-              google::protobuf::Empty* reply);
+  Status AppendEntriesRequest(ServerContext *context,
+                              const AppendEntriesArgument *request,
+                              google::protobuf::Empty *reply) override;
+  Status AppendEntriesReply(ServerContext *context,
+                            const AppendEntriesResult *request,
+                            google::protobuf::Empty *reply) override;
+  Status RequestVoteRequest(ServerContext *context,
+                            const RequestVoteArgument *request,
+                            google::protobuf::Empty *reply) override;
+  Status RequestVoteReply(ServerContext *context,
+                          const RequestVoteResult *request,
+                          google::protobuf::Empty *reply) override;
+  Status Ping(ServerContext *context, const PingMessage *request,
+              google::protobuf::Empty *reply) override;
+  Status AddTask(ServerContext *context, const Task *request,
+                 google::protobuf::Empty *reply) override;
 
 private:
   RaftState raft_state_;

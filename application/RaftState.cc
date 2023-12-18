@@ -11,8 +11,9 @@ void RaftState::switchToLeader() {
   }
 
   role_ = RaftRole::RAFT_LEADER;
+  next_index_ = std::vector<uint64_t>(raft_size_, log_.size());
   match_index_ = std::vector<uint64_t>(raft_size_, 0ull);
-  utility::logError("Become leader on term %u", current_term_);
+  utility::logCrit("Become leader on term %u", current_term_);
   leader_periodic_.setDeadline(100);
 }
 
@@ -39,7 +40,7 @@ void RaftState::switchToCandidate() {
 
 bool RaftState::appendEntries(
     uint64_t prevLogIndex, uint64_t prevLogTerm,
-    const google::protobuf::RepeatedPtrField<token::LogEntry>& appendLogs) {
+    const google::protobuf::RepeatedPtrField<token::LogEntry> &appendLogs) {
   assert(role_ == RaftRole::RAFT_FOLLOWER);
 
   bool match =
@@ -133,7 +134,7 @@ void RaftState::leaderPeriodicCallback() {
       return;
     }
 
-    utility::logInfo("Leader heartbeating");
+    // utility::logInfo("Leader heartbeating");
   }
 
   // Send to all followers a ping message
@@ -149,7 +150,7 @@ void RaftState::leaderPeriodicCallback() {
 void RaftState::handleAppendEntries(
     uint64_t term, uint64_t leaderId, int64_t prevLogIndex,
     uint64_t prevLogTerm,
-    const google::protobuf::RepeatedPtrField<token::LogEntry>& entries,
+    const google::protobuf::RepeatedPtrField<token::LogEntry> &entries,
     uint64_t leaderCommit) {
   std::unique_lock lock(mux_);
 
@@ -211,25 +212,25 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
     switch (role_) {
     case RaftRole::RAFT_LEADER:
       // As a leader of the same term, reject the request
-      // stub::ElectionStub::replyTo(candidateId, current_term_, false);
       return {current_term_, false};
-      // break;
     case RaftRole::RAFT_FOLLOWER:
       // Already a follower following the current leader, reject the request
-      // stub::ElectionStub::replyTo(candidateId, current_term_, false);
       return {current_term_, false};
-      // break;
     case RaftRole::RAFT_CANDIDATE:
       // As a candidate looking for the same thing, approve it and set votedFor
       if (voted_for_ && (*voted_for_) != candidateId) {
         // Voted for someone else, reject it
-        // stub::ElectionStub::replyTo(candidateId, current_term_, false);
         return {current_term_, false};
       } else {
-        // Otherwise approve it and set voteFor
-        voted_for_ = candidateId;
-        // stub::ElectionStub::replyTo(candidateId, current_term_, true);
-        return {current_term_, true};
+        /**
+         * Only vote for other candidates with longer log entries
+         */
+        if (lastLogIndex + 1 > log_.size()) {
+          voted_for_ = candidateId;
+          return {current_term_, true};
+        } else {
+          return {current_term_, false};
+        }
       }
 
       break;
@@ -319,14 +320,28 @@ void RaftState::handleVoteReply(uint64_t term, bool voteGranted) {
 
 void RaftState::handlePingMsg(token::ServerType senderType,
                               uint64_t senderIdx) {
-  utility::logError("Reveived ping");
   if (senderType == token::ServerType::MASTER) {
     // Switch to follower
+    std::unique_lock lock(mux_);
+
     switchToFollower();
 
     // Received a ping from leader
     follower_timeout_.setDeadline(500);
   }
+}
+
+void RaftState::handleAddTask(std::string task) {
+  std::unique_lock lock(mux_);
+
+  // Discard the request if node is not a leader
+  if (role_ != RaftRole::RAFT_LEADER) {
+    return;
+  }
+
+  utility::logInfo("Handling %s", task);
+
+  // Try to replicate the log to other servers
 }
 
 } // namespace application

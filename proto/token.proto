@@ -48,3 +48,8 @@ message RequestVoteResult {
   uint64 term = 1;
   bool voteGranted = 2;
 }
+
+message Task {
+  // For now the task is a simple string
+  string value = 1;
+}
