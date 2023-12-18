@@ -1,4 +1,4 @@
-#include "stub/election.h"
+#include "stub/ElectionStub.h"
 
 #include "absl/container/flat_hash_set.h"
 
@@ -42,7 +42,7 @@ void ElectionStub::initiateElection() {
         api::RaftService::NewStub(channel);
     grpc::Status status = stub->RequestVoteRequest(&context, request, &empty);
 
-    utility::logInfo("Status: %u", status.ok());
+    // utility::logInfo("Status: %u", status.ok());
   }
 }
 

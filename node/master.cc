@@ -14,8 +14,8 @@
 
 #include "proto/api.grpc.pb.h"
 
-#include "application/raft_application.h"
-#include "stub/pinger.h"
+#include "application/RaftApplication.h"
+#include "stub/PingStub.h"
 #include "utility/logger.h"
 #include "utility/periodic.h"
 #include "utility/ping_history.h"

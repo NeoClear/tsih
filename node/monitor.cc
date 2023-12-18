@@ -31,7 +31,7 @@
 //   identity.set_server_type(services::ServerType::MASTER);
 //   identity.set_server_index(0);
 
-//   services::PingerStub client(3, identity);
+//   services::PingStub client(3, identity);
 
 //   auto pings = [&]() {
 //     for (;;) {

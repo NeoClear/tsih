@@ -3,9 +3,9 @@ cc_binary(
     srcs = ["master.cc"],
     deps = [
         "//application:master_application",
-        "//application:raft_application",
+        "//application:RaftApplication",
         "//proto:api_cc_grpc",
-        "//stub:pinger",
+        "//stub:PingStub",
         "//utility:logger",
         "//utility:periodic",
         "//utility:ping_history",

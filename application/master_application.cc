@@ -53,8 +53,8 @@ const token::ServerIdentity MasterService::initializeIdentity(uint16_t index) {
 }
 
 void MasterService::pingMasters() {
-  std::shared_ptr<stub::PingerStub> client =
-      std::make_shared<stub::PingerStub>(master_count_, identity_);
+  std::shared_ptr<stub::PingStub> client =
+      std::make_shared<stub::PingStub>(master_count_, identity_);
 
   client->ping();
 }

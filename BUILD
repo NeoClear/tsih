@@ -8,7 +8,7 @@ cc_binary(
     name = "driver",
     srcs = ["driver.cc"],
     deps = [
-        "//application:raft_application",
+        "//application:RaftApplication",
         "//utility:deadliner",
     ],
 )

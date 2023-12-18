@@ -18,7 +18,8 @@ void Deadliner::setDeadline(uint64_t millsecond) {
 
   if (!pending_) {
     // No work running at the moment
-    notifier_.join();
+    // notifier_.join();
+    notifier_.detach();
 
     notifier_ = std::thread(std::bind(&Deadliner::notifyThread, this));
 
