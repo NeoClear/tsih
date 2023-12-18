@@ -16,9 +16,9 @@
 
 #include "application/RaftApplication.h"
 #include "stub/PingStub.h"
-#include "utility/logger.h"
+#include "utility/Logger.h"
+#include "utility/PingHistory.h"
 #include "utility/periodic.h"
-#include "utility/ping_history.h"
 
 #include <google/protobuf/util/message_differencer.h>
 

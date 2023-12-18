@@ -20,9 +20,9 @@
 #include "proto/api.grpc.pb.h"
 
 #include "stub/PingStub.h"
-#include "utility/deadliner.h"
-#include "utility/logger.h"
-#include "utility/ping_history.h"
+#include "utility/Deadliner.h"
+#include "utility/Logger.h"
+#include "utility/PingHistory.h"
 
 #include <google/protobuf/util/message_differencer.h>
 
@@ -127,7 +127,7 @@ private:
   // Append entries to log
   bool appendEntries(
       uint64_t prevLogIndex, uint64_t prevLogTerm,
-      const google::protobuf::RepeatedPtrField<token::LogEntry> &appendLogs);
+      const google::protobuf::RepeatedPtrField<token::LogEntry>& appendLogs);
 
   void leaderElection();
 
@@ -162,7 +162,7 @@ public:
   void handleAppendEntries(
       uint64_t term, uint64_t leaderId, int64_t prevLogIndex,
       uint64_t prevLogTerm,
-      const google::protobuf::RepeatedPtrField<token::LogEntry> &entries,
+      const google::protobuf::RepeatedPtrField<token::LogEntry>& entries,
       uint64_t leaderCommit);
 
   /**

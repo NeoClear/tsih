@@ -7,7 +7,7 @@ cc_library(
     deps = [
         "//:config",
         "//proto:api_cc_grpc",
-        "//utility:logger",
+        "//utility:Logger",
         "@com_google_absl//absl/container:flat_hash_map",
     ],
 )
@@ -19,7 +19,7 @@ cc_library(
     deps = [
         "//:config",
         "//proto:api_cc_grpc",
-        "//utility:logger",
+        "//utility:Logger",
         "@com_google_absl//absl/container:flat_hash_map",
     ],
 )

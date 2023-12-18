@@ -22,9 +22,9 @@
 #include "application/RaftState.h"
 
 #include "stub/PingStub.h"
-#include "utility/deadliner.h"
-#include "utility/logger.h"
-#include "utility/ping_history.h"
+#include "utility/Deadliner.h"
+#include "utility/Logger.h"
+#include "utility/PingHistory.h"
 
 #include <google/protobuf/util/message_differencer.h>
 
@@ -52,20 +52,20 @@ public:
   explicit RaftServiceImpl(uint64_t raft_size, uint64_t candidate_idx)
       : raft_state_(raft_size, candidate_idx) {}
 
-  Status AppendEntriesRequest(ServerContext *context,
-                              const AppendEntriesArgument *request,
-                              google::protobuf::Empty *reply);
-  Status AppendEntriesReply(ServerContext *context,
-                            const AppendEntriesResult *request,
-                            google::protobuf::Empty *reply);
-  Status RequestVoteRequest(ServerContext *context,
-                            const RequestVoteArgument *request,
-                            google::protobuf::Empty *reply);
-  Status RequestVoteReply(ServerContext *context,
-                          const RequestVoteResult *request,
-                          google::protobuf::Empty *reply);
-  Status Ping(ServerContext *context, const PingMessage *request,
-              google::protobuf::Empty *reply);
+  Status AppendEntriesRequest(ServerContext* context,
+                              const AppendEntriesArgument* request,
+                              google::protobuf::Empty* reply);
+  Status AppendEntriesReply(ServerContext* context,
+                            const AppendEntriesResult* request,
+                            google::protobuf::Empty* reply);
+  Status RequestVoteRequest(ServerContext* context,
+                            const RequestVoteArgument* request,
+                            google::protobuf::Empty* reply);
+  Status RequestVoteReply(ServerContext* context,
+                          const RequestVoteResult* request,
+                          google::protobuf::Empty* reply);
+  Status Ping(ServerContext* context, const PingMessage* request,
+              google::protobuf::Empty* reply);
 
 private:
   RaftState raft_state_;

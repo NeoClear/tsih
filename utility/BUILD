@@ -6,8 +6,8 @@ cc_library(
 )
 
 cc_library(
-    name = "ping_history",
-    hdrs = ["ping_history.h"],
+    name = "PingHistory",
+    hdrs = ["PingHistory.h"],
     deps = [
         "//proto:api_cc_grpc",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -15,15 +15,15 @@ cc_library(
 )
 
 cc_library(
-    name = "deadliner",
-    srcs = ["deadliner.cc"],
-    hdrs = ["deadliner.h"],
+    name = "Deadliner",
+    srcs = ["Deadliner.cc"],
+    hdrs = ["Deadliner.h"],
 )
 
 cc_library(
-    name = "logger",
-    srcs = ["logger.cc"],
-    hdrs = ["logger.h"],
+    name = "Logger",
+    srcs = ["Logger.cc"],
+    hdrs = ["Logger.h"],
     deps = [
         "@com_google_absl//absl/strings:str_format",
     ],

@@ -1,10 +1,10 @@
-#include "utility/deadliner.h"
+#include "utility/Deadliner.h"
 
 #include <random>
 
 namespace utility {
 
-Deadliner::Deadliner(const std::function<void()> &fn)
+Deadliner::Deadliner(const std::function<void()>& fn)
     : pending_(false), task_(std::make_unique<std::function<void()>>(fn)),
       deadline_(0ull), notifier_([]() {}) {}
 

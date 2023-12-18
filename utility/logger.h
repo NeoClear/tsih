@@ -32,22 +32,22 @@ std::string now() noexcept;
 
 template <typename... Args>
 void inline logInfo(const LOG_TYPE logType,
-                    const absl::FormatSpec<Args...> &formatString,
-                    const Args &...args) {
+                    const absl::FormatSpec<Args...>& formatString,
+                    const Args&... args) {
   absl::FPrintF(stderr, "%s [%s]: %s\n", logType2StringView(logType), now(),
                 absl::StrFormat(formatString, args...));
 }
 
 template <typename... Args>
-void inline logInfo(const absl::FormatSpec<Args...> &formatString,
-                    const Args &...args) {
+void inline logInfo(const absl::FormatSpec<Args...>& formatString,
+                    const Args&... args) {
   absl::FPrintF(stderr, "%s [%s]: %s\n", logType2StringView(LOG_TYPE::INFO),
                 now(), absl::StrFormat(formatString, args...));
 }
 
 template <typename... Args>
-void inline logError(const absl::FormatSpec<Args...> &formatString,
-                     const Args &...args) {
+void inline logError(const absl::FormatSpec<Args...>& formatString,
+                     const Args&... args) {
   absl::FPrintF(stderr, "%s [%s]: %s\n", logType2StringView(LOG_TYPE::ERR),
                 now(), absl::StrFormat(formatString, args...));
 }

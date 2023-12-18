@@ -1,7 +1,7 @@
 #include "application/RaftState.h"
 
 #include "stub/ElectionStub.h"
-#include "utility/logger.h"
+#include "utility/Logger.h"
 
 namespace application {
 
@@ -39,7 +39,7 @@ void RaftState::switchToCandidate() {
 
 bool RaftState::appendEntries(
     uint64_t prevLogIndex, uint64_t prevLogTerm,
-    const google::protobuf::RepeatedPtrField<token::LogEntry> &appendLogs) {
+    const google::protobuf::RepeatedPtrField<token::LogEntry>& appendLogs) {
   assert(role_ == RaftRole::RAFT_FOLLOWER);
 
   bool match =
@@ -149,7 +149,7 @@ void RaftState::leaderPeriodicCallback() {
 void RaftState::handleAppendEntries(
     uint64_t term, uint64_t leaderId, int64_t prevLogIndex,
     uint64_t prevLogTerm,
-    const google::protobuf::RepeatedPtrField<token::LogEntry> &entries,
+    const google::protobuf::RepeatedPtrField<token::LogEntry>& entries,
     uint64_t leaderCommit) {
   std::unique_lock lock(mux_);
 

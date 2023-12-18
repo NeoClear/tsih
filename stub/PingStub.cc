@@ -1,5 +1,5 @@
 #include "stub/PingStub.h"
-#include "utility/logger.h"
+#include "utility/Logger.h"
 
 #include "absl/container/flat_hash_set.h"
 
@@ -31,7 +31,7 @@ void PingStub::ping() {
 
   pingMsg.mutable_server_identity()->CopyFrom(identity_);
 
-  for (const auto &stub : master_stubs_) {
+  for (const auto& stub : master_stubs_) {
     ClientContext context;
     google::protobuf::Empty empty;
 
