@@ -20,7 +20,8 @@ using token::PingMessage;
 using token::RequestVoteArgument;
 using token::RequestVoteResult;
 using token::ServerIdentity;
-using token::Task;
+using token::SubmitTaskReply;
+using token::SubmitTaskRequest;
 
 using grpc::Channel;
 using grpc::Server;
@@ -42,16 +43,41 @@ public:
     }
   }
 
-  void addTask(const std::string& task) {
-    Task request;
+  void submitTask(const std::string& task) {
+    SubmitTaskRequest request;
+    SubmitTaskReply reply;
+
+    std::vector<ClientContext> contexts(stubs_.size());
+    std::vector<SubmitTaskReply> replies(stubs_.size());
+
     request.set_value(task);
 
-    google::protobuf::Empty empty;
+    std::mutex mux;
+    std::condition_variable cv;
 
-    for (const std::unique_ptr<RaftService::Stub>& stub : stubs_) {
-      ClientContext context;
-      stub->AddTask(&context, request, &empty);
+    uint64_t respondedNum = 0;
+
+    for (uint64_t i = 0; i < stubs_.size(); ++i) {
+      stubs_[i]->async()->SubmitTask(
+          &contexts[i], &request, &replies[i],
+          [&respondedNum, &mux, &cv, &replies, i](Status status) {
+            std::unique_lock lock(mux);
+            respondedNum++;
+
+            if (replies[i].success()) {
+              absl::PrintF("Task submitted!\n");
+            }
+
+            if (respondedNum == replies.size()) {
+              cv.notify_all();
+            }
+          });
     }
+
+    std::unique_lock lock(mux);
+    cv.wait(lock, [&respondedNum, &replies]() {
+      return respondedNum == replies.size();
+    });
   }
 
 private:
@@ -61,7 +87,7 @@ private:
 int main(int argc, char** argv) {
   TaskClient client(3);
 
-  client.addTask("WHAT THE FUCK");
+  client.submitTask("This is a request");
 
   return 0;
 }
