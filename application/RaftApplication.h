@@ -55,18 +55,10 @@ public:
   explicit RaftServiceImpl(uint64_t raft_size, uint64_t candidate_idx)
       : raft_state_(raft_size, candidate_idx) {}
 
-  // Status AppendEntriesRequest(ServerContext* context,
-  //                             const AppendEntriesArgument* request,
-  //                             google::protobuf::Empty* reply) override;
-  // Status AppendEntriesReply(ServerContext* context,
-  //                           const AppendEntriesResult* request,
-  //                           google::protobuf::Empty* reply) override;
-  // Status RequestVoteRequest(ServerContext* context,
-  //                           const RequestVoteArgument* request,
-  //                           google::protobuf::Empty* reply) override;
-  // Status RequestVoteReply(ServerContext* context,
-  //                         const RequestVoteResult* request,
-  //                         google::protobuf::Empty* reply) override;
+  ServerUnaryReactor* AppendEntries(CallbackServerContext* context,
+                                    const AppendEntriesArgument* request,
+                                    AppendEntriesResult* reply) override;
+
   ServerUnaryReactor* RequestVote(CallbackServerContext* context,
                                   const RequestVoteArgument* request,
                                   RequestVoteResult* reply) override;

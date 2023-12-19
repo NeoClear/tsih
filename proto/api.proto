@@ -23,9 +23,10 @@ service RaftService {
   //     returns (google.protobuf.Empty) {}
   // rpc RequestVoteReply(token.RequestVoteResult)
   //     returns (google.protobuf.Empty) {}
+
+  rpc AppendEntries(token.AppendEntriesArgument) returns (token.AppendEntriesResult) {}
   rpc RequestVote(token.RequestVoteArgument) returns (token.RequestVoteResult) {}
 
   rpc Ping(token.PingMessage) returns (google.protobuf.Empty) {}
-
   rpc AddTask(token.Task) returns (google.protobuf.Empty) {}
 }

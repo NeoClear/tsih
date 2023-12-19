@@ -76,59 +76,51 @@ class RaftState {
 private:
   std::mutex mux_;
 
-  uint64_t current_term_;
-
-  std::optional<uint64_t> voted_for_;
-
-  std::vector<std::pair<std::string, uint64_t>> log_;
-
-  uint64_t commit_index_;
-  uint64_t last_applied_;
-
-  std::vector<uint64_t> next_index_;
-  std::vector<uint64_t> match_index_;
-
-  uint64_t candidate_idx_;
-
   /**
-   * @brief Number of other raft nodes that granted vote for current node
-   * OTHER NODES! Does not include itself
+   * @brief Constant throughout the lifetime
    */
-  uint64_t granted_;
+  const uint64_t raft_size_;
+  const uint64_t candidate_idx_;
 
-  uint64_t raft_size_;
   RaftRole role_;
 
   /**
-   * @brief Called when candidate failed to get an result for election
-   *
-   * This deadliner is a tool to initiate another round of election
+   * @brief It would be better to refer Raft payer
+   */
+  uint64_t current_term_;
+  std::optional<uint64_t> voted_for_;
+  std::vector<std::pair<std::string, uint64_t>> log_;
+  uint64_t commit_index_;
+  uint64_t last_applied_;
+  std::vector<uint64_t> next_index_;
+  std::vector<uint64_t> match_index_;
+
+  /**
+   * @brief Following are timers used to run specific tasks on timeout
    */
   utility::Deadliner candidate_timeout_;
-
-  /**
-   * @brief Called when follower failed to get a ping from leader
-   *
-   * This deadliner is a tool to switch to switch to candidate from follower
-   */
   utility::Deadliner follower_timeout_;
-
-  /**
-   * @brief Leader should periodically send ping messages to followers
-   */
   utility::Deadliner leader_periodic_;
 
+  void candidateTimeoutCallback();
+  void followerTimeoutCallback();
+  void leaderPeriodicCallback();
+
+  /**
+   * @brief Following stubs are used to communicate with other nodes
+   * Communications are multiplexed but synchronous, thus must be called outside
+   * of lock protection, otherwise could result in deadlock
+   */
   stub::PingStub ping_stub_;
   stub::AppendStub append_stub_;
   stub::ElectionStub election_stub_;
 
   /**
-   * @brief Called when switched to leader
+   * @brief Following functions are called to switch role
+   * Must be called under lock protection
    */
   void switchToLeader();
-
   void switchToFollower();
-
   void switchToCandidate();
 
   // Append entries to log
@@ -136,28 +128,14 @@ private:
       uint64_t prevLogIndex, uint64_t prevLogTerm,
       const google::protobuf::RepeatedPtrField<token::LogEntry>& appendLogs);
 
-  void leaderElection();
-
+  /**
+   * @brief Term update, must be protected by lock
+   */
   void incTerm();
-
   void updateTerm(const uint64_t newTerm);
 
-  void followerTimeoutCallback();
-
-  void leaderPeriodicCallback();
-
 public:
-  explicit RaftState(uint64_t raft_size, uint64_t candidate_idx)
-      : current_term_(0), commit_index_(0), last_applied_(0),
-        candidate_idx_(candidate_idx), granted_(0u), raft_size_(raft_size),
-        role_(RaftRole::RAFT_CANDIDATE),
-        candidate_timeout_(std::bind(&RaftState::leaderElection, this)),
-        follower_timeout_(std::bind(&RaftState::followerTimeoutCallback, this)),
-        leader_periodic_(std::bind(&RaftState::leaderPeriodicCallback, this)),
-        ping_stub_(raft_size_, token::ServerType::MASTER, candidate_idx_),
-        append_stub_(raft_size_), election_stub_(raft_size, candidate_idx) {
-    candidate_timeout_.setRandomDeadline(200, 2000);
-  }
+  explicit RaftState(uint64_t raftSize, uint64_t candidateIdx);
 
   std::string toString() const {
     return absl::StrFormat("Role: %s, term: %d", roleToSV(role_),
@@ -174,19 +152,15 @@ public:
       uint64_t leaderCommit);
 
   /**
-   * @brief Return values are send instructions
-   *
-   * @param term
-   * @param candidateId
-   * @param lastLogIndex
-   * @param lastLogTerm
+   * @brief Corresponds with requestVote in Raft Paper
+   * Do not handle response to avoid having both lock and communication
    */
   std::pair<uint64_t, bool> handleVoteRequest(uint64_t term,
                                               uint64_t candidateId,
                                               int64_t lastLogIndex,
                                               uint64_t lastLogTerm);
 
-  void handlePingMsg(token::ServerType senderType, uint64_t senderIdx);
+  void handlePing(token::ServerType senderType, uint64_t senderIdx);
 
   void handleAddTask(std::string task);
 };
