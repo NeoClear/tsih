@@ -11,39 +11,80 @@ using token::PingMessage;
 
 namespace stub {
 
-ElectionStub::ElectionStub(const uint64_t master_count,
-                           const uint64_t candidate_idx, const uint64_t term,
-                           const int64_t last_log_index,
-                           const uint64_t last_log_term)
-    : candidate_idx_(candidate_idx), term_(term),
-      last_log_index_(last_log_index), last_log_term_(last_log_term),
-      raft_size_(master_count) {}
-
-void ElectionStub::initiateElection() {
-  token::RequestVoteArgument request;
-
-  request.set_term(term_);
-  request.set_candidateid(candidate_idx_);
-  request.set_lastlogindex(last_log_index_);
-  request.set_lastlogterm(last_log_term_);
-
-  for (uint64_t i = 0; i < raft_size_; ++i) {
-    if (i == candidate_idx_) {
+ElectionStub::ElectionStub(const uint64_t raftSize, const uint64_t candidateIdx)
+    : candidate_idx_(candidateIdx) {
+  for (uint64_t port = MASTER_BASE_PORT; port < MASTER_BASE_PORT + raftSize;
+       ++port) {
+    if (port == MASTER_BASE_PORT + candidate_idx_) {
       continue;
     }
 
-    ClientContext context;
-    google::protobuf::Empty empty;
-
     std::shared_ptr<Channel> channel =
-        grpc::CreateChannel(absl::StrFormat("0.0.0.0:%u", i + MASTER_BASE_PORT),
+        grpc::CreateChannel(absl::StrFormat("0.0.0.0:%u", port),
                             grpc::InsecureChannelCredentials());
-    std::unique_ptr<api::RaftService::Stub> stub =
-        api::RaftService::NewStub(channel);
-    grpc::Status status = stub->RequestVoteRequest(&context, request, &empty);
-
-    // utility::logInfo("Status: %u", status.ok());
+    raft_stubs_.emplace_back(api::RaftService::NewStub(channel));
   }
+}
+
+std::pair<bool, uint64_t> ElectionStub::elect(const uint64_t term,
+                                              const int64_t lastLogIndex,
+                                              const uint64_t lastLogTerm) {
+  token::RequestVoteArgument request;
+
+  request.set_candidateid(candidate_idx_);
+
+  request.set_term(term);
+  request.set_lastlogindex(lastLogIndex);
+  request.set_lastlogterm(lastLogTerm);
+
+  std::vector<token::RequestVoteResult> replies(raft_stubs_.size());
+  std::vector<ClientContext> contexts(raft_stubs_.size());
+
+  // Need At least half of other raft nodes to vote to be elected
+
+  uint64_t votedNum = 0;
+  uint64_t respondedNum = 0;
+  std::mutex mux;
+  std::condition_variable cv;
+
+  for (uint64_t i = 0; i < raft_stubs_.size(); ++i) {
+    raft_stubs_[i]->async()->RequestVote(
+        &contexts[i], &request, &replies[i],
+        [&mux, &respondedNum, &replies, &votedNum, &cv,
+         i](grpc::Status status) {
+          std::unique_lock lock(mux);
+
+          respondedNum++;
+
+          if (status.ok()) {
+            utility::logError("Managed to connect!!");
+          }
+
+          if (status.ok() && replies[i].votegranted()) {
+            votedNum++;
+          }
+
+          if (respondedNum == replies.size()) {
+            cv.notify_all();
+          }
+        });
+  }
+
+  std::unique_lock lock(mux);
+
+  cv.wait(lock, [&replies, &respondedNum]() {
+    return respondedNum == replies.size();
+  });
+
+  uint64_t maxTerm = term;
+
+  utility::logError("Vote count %u", votedNum);
+
+  for (const auto& reply : replies) {
+    maxTerm = std::max(maxTerm, reply.term());
+  }
+
+  return {votedNum * 2 >= replies.size(), maxTerm};
 }
 
 } // namespace stub

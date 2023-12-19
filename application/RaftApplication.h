@@ -41,34 +41,41 @@ using token::RequestVoteResult;
 using token::ServerIdentity;
 using token::Task;
 
+using grpc::CallbackServerContext;
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
+using grpc::ServerUnaryReactor;
 using grpc::Status;
 
 namespace application {
 
-class RaftServiceImpl : public api::RaftService::Service {
+class RaftServiceImpl : public api::RaftService::CallbackService {
 public:
   explicit RaftServiceImpl(uint64_t raft_size, uint64_t candidate_idx)
       : raft_state_(raft_size, candidate_idx) {}
 
-  Status AppendEntriesRequest(ServerContext* context,
-                              const AppendEntriesArgument* request,
-                              google::protobuf::Empty* reply) override;
-  Status AppendEntriesReply(ServerContext* context,
-                            const AppendEntriesResult* request,
-                            google::protobuf::Empty* reply) override;
-  Status RequestVoteRequest(ServerContext* context,
-                            const RequestVoteArgument* request,
-                            google::protobuf::Empty* reply) override;
-  Status RequestVoteReply(ServerContext* context,
-                          const RequestVoteResult* request,
-                          google::protobuf::Empty* reply) override;
-  Status Ping(ServerContext* context, const PingMessage* request,
-              google::protobuf::Empty* reply) override;
-  Status AddTask(ServerContext* context, const Task* request,
-                 google::protobuf::Empty* reply) override;
+  // Status AppendEntriesRequest(ServerContext* context,
+  //                             const AppendEntriesArgument* request,
+  //                             google::protobuf::Empty* reply) override;
+  // Status AppendEntriesReply(ServerContext* context,
+  //                           const AppendEntriesResult* request,
+  //                           google::protobuf::Empty* reply) override;
+  // Status RequestVoteRequest(ServerContext* context,
+  //                           const RequestVoteArgument* request,
+  //                           google::protobuf::Empty* reply) override;
+  // Status RequestVoteReply(ServerContext* context,
+  //                         const RequestVoteResult* request,
+  //                         google::protobuf::Empty* reply) override;
+  ServerUnaryReactor* RequestVote(CallbackServerContext* context,
+                                  const RequestVoteArgument* request,
+                                  RequestVoteResult* reply) override;
+
+  ServerUnaryReactor* Ping(CallbackServerContext* context,
+                           const PingMessage* request,
+                           google::protobuf::Empty* reply) override;
+  // Status AddTask(ServerContext* context, const Task* request,
+  //                google::protobuf::Empty* reply) override;
 
 private:
   RaftState raft_state_;

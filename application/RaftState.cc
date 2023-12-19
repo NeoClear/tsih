@@ -24,8 +24,10 @@ void RaftState::switchToFollower() {
 
   role_ = RaftRole::RAFT_FOLLOWER;
 
+  utility::logInfo("switch to follower");
+
   // Start the timeout
-  follower_timeout_.setDeadline(500);
+  follower_timeout_.setDeadline(2000);
 }
 
 void RaftState::switchToCandidate() {
@@ -35,7 +37,8 @@ void RaftState::switchToCandidate() {
 
   role_ = RaftRole::RAFT_CANDIDATE;
 
-  candidate_timeout_.setRandomDeadline(300, 500);
+  utility::logInfo("Switch to candidate");
+  candidate_timeout_.setRandomDeadline(200, 2000);
 }
 
 bool RaftState::appendEntries(
@@ -67,10 +70,8 @@ bool RaftState::appendEntries(
 }
 
 void RaftState::leaderElection() {
-  uint64_t raftSize = raft_size_;
-  uint64_t candidateIdx = candidate_idx_;
-  uint64_t currentTerm = current_term_;
-  int64_t prevLogIdx;
+  uint64_t currentTerm;
+  int64_t lastLogIdx;
   uint64_t lastLogTerm;
 
   {
@@ -87,20 +88,36 @@ void RaftState::leaderElection() {
     // Move to new term
     incTerm();
 
-    raftSize = raft_size_;
-    candidateIdx = candidate_idx_;
-    currentTerm = current_term_;
+    // Vote for self
+    voted_for_ = candidate_idx_;
 
-    prevLogIdx = log_.empty() ? -1 : log_.size() - 1;
+    currentTerm = current_term_;
+    lastLogIdx = log_.empty() ? -1 : log_.size() - 1;
     lastLogTerm = log_.empty() ? 0 : log_.back().second;
   }
 
   // Send voting information all other masters
-  stub::ElectionStub election(raftSize, candidateIdx, currentTerm, prevLogIdx,
-                              lastLogTerm);
-  election.initiateElection();
+  auto [elected, maxTerm] =
+      election_stub_.elect(currentTerm, lastLogIdx, lastLogTerm);
+  // elected should be computed within timely manner, assuming it takes short
+  // amount of time
 
-  candidate_timeout_.setRandomDeadline(300, 500);
+  if (elected) {
+    std::unique_lock lock(mux_);
+
+    if (current_term_ == currentTerm && maxTerm == currentTerm) {
+      switchToLeader();
+      return;
+    }
+
+    if (maxTerm > current_term_) {
+      updateTerm(maxTerm);
+    }
+  }
+
+  // Not elected, go for another round of election after some random amount of
+  // time
+  candidate_timeout_.setRandomDeadline(200, 2000);
 }
 
 void RaftState::incTerm() {
@@ -136,6 +153,8 @@ void RaftState::leaderPeriodicCallback() {
   }
 
   // Send to all followers a ping message
+  // Sending ping messages
+  utility::logInfo("Pinging others");
   ping_stub_.ping();
 
   leader_periodic_.setDeadline(100);
@@ -190,8 +209,6 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
   if (term < current_term_) {
     // Would not vote for outdated term number
     // Send reject message back
-    // stub::ElectionStub::replyTo(candidateId, current_term_, false);
-    // return Status::OK;
     return {current_term_, false};
   } else if (term == current_term_) {
     // The voting request is the same as current term
@@ -229,6 +246,7 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
 
   } else {
     utility::logInfo("Advancing to term number %u", term);
+    utility::logInfo("Current role %s", roleToSV(role_));
 
     // Larger term number
     switch (role_) {
@@ -247,8 +265,6 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
 
       // Voted
       return {current_term_, true};
-
-      // break;
     case RaftRole::RAFT_CANDIDATE:
       // Also switch to follower
       updateTerm(term);
@@ -262,49 +278,51 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
     }
   }
 
-  utility::logInfo("Raft state: %s", toString());
+  // utility::logInfo("Raft state: %s", toString());
 }
 
-void RaftState::handleVoteReply(uint64_t term, bool voteGranted) {
-  std::unique_lock lock(mux_);
+// void RaftState::handleVoteReply(uint64_t term, bool voteGranted) {
+//   std::unique_lock lock(mux_);
 
-  utility::logInfo("Received reply %u: %s", term,
-                   (voteGranted ? "granted" : "rejected"));
+//   utility::logInfo("Received reply %u: %s", term,
+//                    (voteGranted ? "granted" : "rejected"));
 
-  if (term < current_term_) {
-    // Expired replies
-    // Ignore
-  } else if (term == current_term_) {
-    if (voteGranted) {
-      granted_++;
-      utility::logInfo("Visited");
-    }
+//   if (term < current_term_) {
+//     // Expired replies
+//     // Ignore
+//   } else if (term == current_term_) {
+//     if (voteGranted) {
+//       granted_++;
+//       utility::logInfo("Visited");
+//     }
 
-    switch (role_) {
-    case RaftRole::RAFT_LEADER:
-      // Already a leader, do not care about replies
-      break;
-    case RaftRole::RAFT_FOLLOWER:
-      // No idea why we have this branch
-      break;
-    case RaftRole::RAFT_CANDIDATE:
-      if ((granted_ + 1) * 2 > raft_size_) {
-        // Getting majority, switch to leader
-        switchToLeader();
-      }
-      break;
-    default:
-      throw std::runtime_error("Invalid role");
-      break;
-    }
-  } else {
-    // Getting reply from future term number. Is it even possible?
-    throw std::runtime_error("Getting future term number");
-  }
-}
+//     switch (role_) {
+//     case RaftRole::RAFT_LEADER:
+//       // Already a leader, do not care about replies
+//       break;
+//     case RaftRole::RAFT_FOLLOWER:
+//       // No idea why we have this branch
+//       break;
+//     case RaftRole::RAFT_CANDIDATE:
+//       if ((granted_ + 1) * 2 > raft_size_) {
+//         // Getting majority, switch to leader
+//         switchToLeader();
+//       }
+//       break;
+//     default:
+//       throw std::runtime_error("Invalid role");
+//       break;
+//     }
+//   } else {
+//     // Getting reply from future term number. Is it even possible?
+//     throw std::runtime_error("Getting future term number");
+//   }
+// }
 
 void RaftState::handlePingMsg(token::ServerType senderType,
                               uint64_t senderIdx) {
+  utility::logError("Received ping from leader");
+
   if (senderType == token::ServerType::MASTER) {
     // Switch to follower
     std::unique_lock lock(mux_);

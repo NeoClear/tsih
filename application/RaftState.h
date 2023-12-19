@@ -20,6 +20,7 @@
 #include "proto/api.grpc.pb.h"
 
 #include "stub/AppendStub.h"
+#include "stub/ElectionStub.h"
 #include "stub/PingStub.h"
 
 #include "utility/Deadliner.h"
@@ -119,6 +120,7 @@ private:
 
   stub::PingStub ping_stub_;
   stub::AppendStub append_stub_;
+  stub::ElectionStub election_stub_;
 
   /**
    * @brief Called when switched to leader
@@ -153,8 +155,8 @@ public:
         follower_timeout_(std::bind(&RaftState::followerTimeoutCallback, this)),
         leader_periodic_(std::bind(&RaftState::leaderPeriodicCallback, this)),
         ping_stub_(raft_size_, token::ServerType::MASTER, candidate_idx_),
-        append_stub_(raft_size_) {
-    candidate_timeout_.setRandomDeadline(300, 500);
+        append_stub_(raft_size_), election_stub_(raft_size, candidate_idx) {
+    candidate_timeout_.setRandomDeadline(200, 2000);
   }
 
   std::string toString() const {
@@ -183,14 +185,6 @@ public:
                                               uint64_t candidateId,
                                               int64_t lastLogIndex,
                                               uint64_t lastLogTerm);
-
-  /**
-   * @brief Handle vote replies from other nodes
-   *
-   * @param term
-   * @param voteGranted
-   */
-  void handleVoteReply(uint64_t term, bool voteGranted);
 
   void handlePingMsg(token::ServerType senderType, uint64_t senderIdx);
 
