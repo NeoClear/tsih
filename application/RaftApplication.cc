@@ -53,4 +53,17 @@ ServerUnaryReactor* RaftServiceImpl::Ping(CallbackServerContext* context,
   return reactor;
 }
 
+ServerUnaryReactor*
+RaftServiceImpl::SubmitTask(CallbackServerContext* context,
+                            const SubmitTaskRequest* request,
+                            SubmitTaskReply* reply) {
+  reply->set_isleader(true);
+  reply->set_success(true);
+
+  ServerUnaryReactor* reactor = context->DefaultReactor();
+  reactor->Finish(Status::OK);
+
+  return reactor;
+}
+
 } // namespace application

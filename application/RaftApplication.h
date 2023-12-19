@@ -39,7 +39,8 @@ using token::PingMessage;
 using token::RequestVoteArgument;
 using token::RequestVoteResult;
 using token::ServerIdentity;
-using token::Task;
+using token::SubmitTaskReply;
+using token::SubmitTaskRequest;
 
 using grpc::CallbackServerContext;
 using grpc::Server;
@@ -66,8 +67,10 @@ public:
   ServerUnaryReactor* Ping(CallbackServerContext* context,
                            const PingMessage* request,
                            google::protobuf::Empty* reply) override;
-  // Status AddTask(ServerContext* context, const Task* request,
-  //                google::protobuf::Empty* reply) override;
+
+  ServerUnaryReactor* SubmitTask(CallbackServerContext* context,
+                                 const SubmitTaskRequest* request,
+                                 SubmitTaskReply* reply) override;
 
 private:
   RaftState raft_state_;

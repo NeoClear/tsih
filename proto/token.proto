@@ -52,7 +52,12 @@ message RequestVoteResult {
   bool voteGranted = 2;
 }
 
-message Task {
+message SubmitTaskRequest {
   // For now the task is a simple string
   string value = 1;
+}
+
+message SubmitTaskReply {
+  bool isLeader = 1;
+  bool success = 2;
 }
