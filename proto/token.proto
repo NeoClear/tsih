@@ -34,6 +34,9 @@ message AppendEntriesArgument {
 message AppendEntriesResult {
   uint64 term = 1;
   bool success = 2;
+
+  // A hint for master to know
+  uint64 logSize = 3;
 }
 
 message RequestVoteArgument {
