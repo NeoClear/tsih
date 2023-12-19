@@ -21,7 +21,7 @@ public:
   void ping();
 
 private:
-  absl::flat_hash_set<std::unique_ptr<RaftService::Stub>> master_stubs_;
+  std::vector<std::unique_ptr<RaftService::Stub>> master_stubs_;
 
   const token::ServerType type_;
   const uint64_t candidate_idx_;

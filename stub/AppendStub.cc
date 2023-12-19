@@ -16,23 +16,24 @@ void AppendStub::sendAppendEntriesRequest(
     uint64_t term, uint64_t leaderId, int64_t prevLogIndex,
     uint64_t prevLogTerm, const std::vector<token::LogEntry>& entries,
     uint64_t leaderCommit, uint64_t destinationId) {
-  token::AppendEntriesArgument request;
+  // token::AppendEntriesArgument request;
 
-  request.set_term(term);
-  request.set_leaderid(leaderId);
-  request.set_prevlogindex(prevLogIndex);
-  request.set_prevlogterm(prevLogTerm);
-  request.set_leadercommit(leaderCommit);
+  // request.set_term(term);
+  // request.set_leaderid(leaderId);
+  // request.set_prevlogindex(prevLogIndex);
+  // request.set_prevlogterm(prevLogTerm);
+  // request.set_leadercommit(leaderCommit);
 
-  for (const token::LogEntry& entry : entries) {
-    token::LogEntry* entryIt = request.add_entries();
-    entryIt->CopyFrom(entry);
-  }
+  // for (const token::LogEntry& entry : entries) {
+  //   token::LogEntry* entryIt = request.add_entries();
+  //   entryIt->CopyFrom(entry);
+  // }
 
-  google::protobuf::Empty empty;
-  grpc::ClientContext context;
+  // google::protobuf::Empty empty;
+  // grpc::ClientContext context;
 
-  raft_stubs_[destinationId]->AppendEntriesRequest(&context, request, &empty);
+  // raft_stubs_[destinationId]->AppendEntriesRequest(&context, request,
+  // &empty);
 }
 
 } // namespace stub

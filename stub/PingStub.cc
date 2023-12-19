@@ -22,7 +22,7 @@ PingStub::PingStub(const uint16_t master_count, const token::ServerType type,
     std::shared_ptr<Channel> channel = grpc::CreateChannel(
         absl::StrFormat("localhost:%u", i + MASTER_BASE_PORT),
         grpc::InsecureChannelCredentials());
-    master_stubs_.emplace(RaftService::NewStub(channel));
+    master_stubs_.emplace_back(RaftService::NewStub(channel));
   }
 }
 
@@ -36,12 +36,30 @@ void PingStub::ping() {
 
   pingMsg.mutable_server_identity()->CopyFrom(identity);
 
-  for (const auto& stub : master_stubs_) {
-    ClientContext context;
-    google::protobuf::Empty empty;
+  std::vector<ClientContext> contexts(master_stubs_.size());
+  google::protobuf::Empty empty;
 
-    grpc::Status status = stub->Ping(&context, pingMsg, &empty);
+  uint64_t finishedNum = 0;
+  std::mutex mux;
+  std::condition_variable cv;
+
+  for (uint64_t i = 0; i < master_stubs_.size(); ++i) {
+    master_stubs_[i]->async()->Ping(&contexts[i], &pingMsg, &empty,
+                                    [&](grpc::Status status) {
+                                      std::unique_lock lock(mux);
+                                      finishedNum++;
+
+                                      if (finishedNum == contexts.size()) {
+                                        cv.notify_all();
+                                      }
+                                    });
   }
+
+  std::unique_lock lock(mux);
+
+  cv.wait(lock, [&contexts, &finishedNum]() {
+    return finishedNum == contexts.size();
+  });
 }
 
 } // namespace stub
