@@ -13,27 +13,39 @@ AppendStub::AppendStub(uint64_t raftSize) {
 }
 
 void AppendStub::sendAppendEntriesRequest(
-    uint64_t term, uint64_t leaderId, int64_t prevLogIndex,
-    uint64_t prevLogTerm, const std::vector<token::LogEntry>& entries,
-    uint64_t leaderCommit, uint64_t destinationId) {
-  // token::AppendEntriesArgument request;
+    std::vector<bool> requestFilter, std::vector<ClientContext>& context,
+    const std::vector<AppendEntriesArgument>& request,
+    std::vector<AppendEntriesResult>& reply, std::vector<bool>& rpcStatus) {
+  uint64_t requestCount =
+      std::count(requestFilter.cbegin(), requestFilter.cend(), true);
 
-  // request.set_term(term);
-  // request.set_leaderid(leaderId);
-  // request.set_prevlogindex(prevLogIndex);
-  // request.set_prevlogterm(prevLogTerm);
-  // request.set_leadercommit(leaderCommit);
+  std::mutex mux;
+  std::condition_variable cv;
+  uint64_t respondedNum = 0;
 
-  // for (const token::LogEntry& entry : entries) {
-  //   token::LogEntry* entryIt = request.add_entries();
-  //   entryIt->CopyFrom(entry);
-  // }
+  for (uint64_t i = 0; i < raft_stubs_.size(); ++i) {
+    if (!requestFilter[i]) {
+      continue;
+    }
 
-  // google::protobuf::Empty empty;
-  // grpc::ClientContext context;
+    raft_stubs_[i]->async()->AppendEntries(&context[i], &request[i], &reply[i],
+                                           [&mux, i, &rpcStatus, &respondedNum,
+                                            &cv,
+                                            requestCount](grpc::Status status) {
+                                             std::unique_lock lock(mux);
+                                             rpcStatus[i] = status.ok();
+                                             respondedNum++;
 
-  // raft_stubs_[destinationId]->AppendEntriesRequest(&context, request,
-  // &empty);
+                                             if (respondedNum == requestCount) {
+                                               cv.notify_all();
+                                             }
+                                           });
+  }
+
+  std::unique_lock lock(mux);
+  cv.wait(lock, [&respondedNum, requestCount]() {
+    return respondedNum == requestCount;
+  });
 }
 
 } // namespace stub

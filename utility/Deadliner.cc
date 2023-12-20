@@ -11,6 +11,8 @@ Deadliner::Deadliner(const std::function<void()>& fn)
 void Deadliner::setDeadline(uint64_t millsecond) {
   std::unique_lock lock(mux_);
 
+  // utility::logInfo("Setting new deadline %u", millsecond);
+
   uint64_t newDeadline =
       millsecond + std::chrono::duration_cast<std::chrono::milliseconds>(
                        std::chrono::steady_clock::now().time_since_epoch())

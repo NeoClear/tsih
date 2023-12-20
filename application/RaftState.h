@@ -1,5 +1,6 @@
 #pragma once
 
+#include <future>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -71,6 +72,9 @@ constexpr std::string_view roleToSV(RaftRole role) {
  *
  * The class is refered by RaftServiceImpl to modify the state on receiving
  * requests. It is better for code refactoring and modification
+ *
+ * @todo For now, the state of RaftState object is protected by a lock. This
+ * method is pretty coarse-grained, and we are aiming to change it in the future
  */
 class RaftState {
 private:
@@ -94,6 +98,21 @@ private:
   uint64_t last_applied_;
   std::vector<uint64_t> next_index_;
   std::vector<uint64_t> match_index_;
+  // std::vector<std::mutex> master_mutex_;
+
+  /**
+   * @brief The queue holding requests
+   *
+   * Each element is a pair of request content and promise object for task
+   * completion
+   */
+  std::queue<std::pair<std::string, std::promise<bool>>> request_queue_;
+  // Paired with request_queue_ to notify thread when is time to continue
+  // processing
+  // Paired with RaftState global lock mux_ for proper synchronization
+  // This CV is notified on either: 1. more requests coming. 2. Promoted to
+  // leader
+  std::condition_variable on_process_request_;
 
   /**
    * @brief Following are timers used to run specific tasks on timeout
@@ -125,8 +144,14 @@ private:
 
   // Append entries to log
   bool appendEntries(
-      uint64_t prevLogIndex, uint64_t prevLogTerm,
+      int64_t prevLogIndex, uint64_t prevLogTerm,
       const google::protobuf::RepeatedPtrField<token::LogEntry>& appendLogs);
+
+  /**
+   * @brief The background thread used to sync logs
+   */
+  void syncWorker();
+  std::thread sync_thread_;
 
   /**
    * @brief Term update, must be protected by lock
@@ -162,7 +187,12 @@ public:
 
   void handlePing(token::ServerType senderType, uint64_t senderIdx);
 
-  void handleAddTask(std::string task);
+  /**
+   * @brief Return whether current master is a leader
+   */
+  std::future<bool> handleTaskSubmission(std::string task);
+
+  ~RaftState();
 };
 
 } // namespace application
