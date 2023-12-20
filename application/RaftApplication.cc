@@ -57,8 +57,13 @@ ServerUnaryReactor*
 RaftServiceImpl::SubmitTask(CallbackServerContext* context,
                             const SubmitTaskRequest* request,
                             SubmitTaskReply* reply) {
-  reply->set_isleader(true);
-  reply->set_success(true);
+  std::future<bool> futureSuccess =
+      raft_state_.handleTaskSubmission(request->value());
+
+  bool result = futureSuccess.get();
+
+  reply->set_isleader(result);
+  reply->set_success(result);
 
   ServerUnaryReactor* reactor = context->DefaultReactor();
   reactor->Finish(Status::OK);

@@ -84,10 +84,13 @@ private:
   std::vector<std::unique_ptr<RaftService::Stub>> stubs_;
 };
 
-int main(int argc, char** argv) {
-  TaskClient client(3);
+ABSL_FLAG(uint16_t, master_count, 0, "Number of masters");
 
-  client.submitTask("This is a request");
+int main(int argc, char** argv) {
+  absl::ParseCommandLine(argc, argv);
+  TaskClient client(absl::GetFlag(FLAGS_master_count));
+
+  client.submitTask("Task");
 
   return 0;
 }

@@ -10,7 +10,7 @@ public:
   explicit Deadliner(const std::function<void()>& fn);
 
   void setDeadline(uint64_t millsecond);
-  void setRandomDeadline(uint64_t lowerBound = 0, uint64_t upperBound = 0);
+  void setRandomDeadline(uint64_t lowerBound, uint64_t upperBound);
 
   ~Deadliner();
 

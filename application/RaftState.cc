@@ -11,8 +11,16 @@ void RaftState::switchToLeader() {
   }
 
   role_ = RaftRole::RAFT_LEADER;
-  next_index_ = std::vector<uint64_t>(raft_size_, log_.size());
-  match_index_ = std::vector<uint64_t>(raft_size_, 0ull);
+
+  for (uint64_t i = 0; i < raft_size_; ++i) {
+    // std::unique_lock lock(master_mutex_[i]);
+
+    next_index_[i] = log_.size();
+    match_index_[i] = 0;
+  }
+
+  // next_index_ = std::vector<uint64_t>(raft_size_, log_.size());
+  // match_index_ = std::vector<uint64_t>(raft_size_, 0ull);
   utility::logCrit("Become leader on term %u", current_term_);
   leader_periodic_.setDeadline(100);
 }
@@ -27,7 +35,8 @@ void RaftState::switchToFollower() {
   utility::logInfo("switch to follower");
 
   // Start the timeout
-  follower_timeout_.setDeadline(2000);
+  // The timer is only for
+  follower_timeout_.setRandomDeadline(200, 1000);
 }
 
 void RaftState::switchToCandidate() {
@@ -42,12 +51,12 @@ void RaftState::switchToCandidate() {
 }
 
 bool RaftState::appendEntries(
-    uint64_t prevLogIndex, uint64_t prevLogTerm,
+    int64_t prevLogIndex, uint64_t prevLogTerm,
     const google::protobuf::RepeatedPtrField<token::LogEntry>& appendLogs) {
   assert(role_ == RaftRole::RAFT_FOLLOWER);
 
   bool match =
-      prevLogIndex == 0ull ||
+      prevLogIndex == -1ull ||
       (prevLogIndex < log_.size() && log_[prevLogIndex].second == prevLogTerm);
 
   if (!match) {
@@ -65,6 +74,13 @@ bool RaftState::appendEntries(
       log_.emplace_back(appendLogs[idx].content(), appendLogs[idx].term());
     }
   }
+
+  std::cout << "LOG_CONTENT: ";
+  for (uint64_t i = 0; i < log_.size(); ++i) {
+    std::cout << "(" << log_[i].first << ", " << log_[i].second << ")"
+              << ", ";
+  }
+  std::cout << std::endl;
 
   return true;
 }
@@ -120,6 +136,181 @@ void RaftState::candidateTimeoutCallback() {
   candidate_timeout_.setRandomDeadline(200, 2000);
 }
 
+void RaftState::syncWorker() {
+  /**
+   * @brief Must be called with lock on
+   */
+  const auto clearRequestQueue = [this]() {
+    while (!request_queue_.empty()) {
+      request_queue_.front().second.set_value(false);
+      request_queue_.pop();
+    }
+  };
+
+  // An infinite loop
+  for (;;) {
+    std::unique_lock lock(mux_);
+    on_process_request_.wait(lock,
+                             [this]() { return !request_queue_.empty(); });
+
+    if (role_ != RaftRole::RAFT_LEADER) {
+      // Not a leader but have pending requests, reject all of them
+      clearRequestQueue();
+
+      continue;
+    }
+
+    std::pair<std::string, std::promise<bool>> currentRequest =
+        std::move(request_queue_.front());
+
+    request_queue_.pop();
+
+    // Current master node is still a leader, append to log
+    log_.emplace_back(currentRequest.first, current_term_);
+
+    uint64_t logSize = log_.size();
+
+    std::condition_variable onAppendEntriesFinished;
+
+    // Loop until one of the following:
+    // 1. Unable to commit
+    // 2. Successfully commited
+    for (;;) {
+      /**
+       * @brief Prepare rpc docs
+       */
+      std::vector<ClientContext> contexts(raft_size_);
+      std::vector<AppendEntriesArgument> requests(raft_size_);
+      std::vector<AppendEntriesResult> replies(raft_size_);
+      std::vector<bool> rpcStatus(raft_size_);
+      std::vector<bool> requireRPC(raft_size_, true);
+      requireRPC[candidate_idx_] = false;
+
+      // Prepare requests
+      for (uint64_t i = 0; i < raft_size_; ++i) {
+        if (!requireRPC[i]) {
+          continue;
+        }
+
+        requests[i].set_term(current_term_);
+        requests[i].set_leaderid(candidate_idx_);
+        requests[i].set_prevlogindex(static_cast<int64_t>(next_index_[i]) -
+                                     1ll);
+        requests[i].set_prevlogterm(
+            next_index_[i] == 0 ? 0 : log_[next_index_[i] - 1].second);
+        requests[i].set_leadercommit(log_.size() - 1);
+
+        // Goes all the way to the end
+        for (uint64_t copyIdx = next_index_[i]; copyIdx < log_.size();
+             ++copyIdx) {
+          token::LogEntry* entryIt = requests[i].add_entries();
+          entryIt->set_content(log_[copyIdx].first);
+          entryIt->set_term(log_[copyIdx].second);
+        }
+      }
+
+      bool rpcFinished = false;
+
+      /**
+       * @brief Wait for rpc completion
+       */
+      std::thread rpcWaiter([this, &requireRPC, &contexts, &requests, &replies,
+                             &rpcStatus, &rpcFinished,
+                             &onAppendEntriesFinished]() {
+        append_stub_.sendAppendEntriesRequest(requireRPC, contexts, requests,
+                                              replies, rpcStatus);
+        std::unique_lock lock(mux_);
+        rpcFinished = true;
+        onAppendEntriesFinished.notify_all();
+      });
+
+      onAppendEntriesFinished.wait(lock,
+                                   [&rpcFinished]() { return rpcFinished; });
+
+      rpcWaiter.join();
+
+      uint64_t failedNum = 0;
+      bool outdated = false;
+
+      /**
+       * @brief Check rpc results
+       *
+       * There are multiple cases:
+       * 1. Current master is no longer a leader.
+       *    In this case, clear all requests
+       * 2. Exist a reply saying you are out of date
+       *    for this case, also clear all requests
+       * 3. I am the leader, all replies agree with the term number, and:
+       *    3.1. Majority accepts
+       *         for this case, break the loop and reply client with a success
+       *    3.2. No majority accepts
+       *         update nextIdx and try again
+       */
+
+      // No longer leader, clear queue and wait for the next phase
+      if (role_ != RaftRole::RAFT_LEADER) {
+        currentRequest.second.set_value(false);
+        clearRequestQueue();
+        break;
+      }
+
+      for (uint64_t i = 0; i < raft_size_; ++i) {
+        if (!requireRPC[i]) {
+          continue;
+        }
+
+        if (!rpcStatus[i]) {
+          failedNum++;
+          continue;
+        }
+
+        if (replies[i].term() > current_term_) {
+          // Term outdated, no longer leader
+          outdated = true;
+          break;
+        }
+
+        if (replies[i].success()) {
+          requireRPC[i] = false;
+
+          // It is actually size, not index
+          match_index_[i] = logSize; // logSize nubmer of logs are matched
+          next_index_[i] = logSize;  // The next index would be logSize
+        } else {
+          // Not successful, continue
+          uint64_t targetLogSize = replies[i].logsize();
+
+          assert(next_index_[i] > 0);
+
+          next_index_[i] = std::min(next_index_[i] - 1, targetLogSize);
+        }
+      }
+
+      if (outdated) {
+        currentRequest.second.set_value(false);
+        clearRequestQueue();
+        switchToFollower();
+        break;
+      }
+
+      if (failedNum * 2 >= raft_size_) {
+        // Majority failed, cannot process the request
+        currentRequest.second.set_value(false);
+        break;
+      }
+
+      // If majority have accepted the request, mark request as fullfilled
+      if (std::count(requireRPC.cbegin(), requireRPC.cend(), false) * 2 >
+          raft_size_) {
+        currentRequest.second.set_value(true);
+        break;
+      } else {
+        // Otherwise, retry algorithm with more logs
+      }
+    }
+  }
+}
+
 void RaftState::incTerm() {
   voted_for_.reset();
   current_term_++;
@@ -161,12 +352,14 @@ void RaftState::leaderPeriodicCallback() {
 RaftState::RaftState(uint64_t raftSize, uint64_t candidateIdx)
     : raft_size_(raftSize), candidate_idx_(candidateIdx),
       role_(RaftRole::RAFT_CANDIDATE), current_term_(0), commit_index_(0),
-      last_applied_(0),
+      last_applied_(0), next_index_(raft_size_), match_index_(raft_size_),
+      // master_mutex_(raft_size_),
       candidate_timeout_(std::bind(&RaftState::candidateTimeoutCallback, this)),
       follower_timeout_(std::bind(&RaftState::followerTimeoutCallback, this)),
       leader_periodic_(std::bind(&RaftState::leaderPeriodicCallback, this)),
       ping_stub_(raft_size_, token::ServerType::MASTER, candidate_idx_),
-      append_stub_(raft_size_), election_stub_(raft_size_, candidate_idx_) {
+      append_stub_(raft_size_), election_stub_(raft_size_, candidate_idx_),
+      sync_thread_(std::bind(&RaftState::syncWorker, this)) {
   candidate_timeout_.setRandomDeadline(200, 2000);
 }
 
@@ -197,7 +390,7 @@ std::pair<uint64_t, bool> RaftState::handleAppendEntries(
     bool success = appendEntries(prevLogIndex, prevLogTerm, entries);
 
     // Reset a timeout
-    follower_timeout_.setRandomDeadline(500);
+    follower_timeout_.setDeadline(500);
 
     return {current_term_, success};
   }
@@ -220,18 +413,22 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
     // Would not vote for outdated term number
     // Send reject message back
     return {current_term_, false};
-  } else if (term == current_term_) {
+  } else {
     // The voting request is the same as current term
 
-    utility::logInfo("Staying at same term number %u", current_term_);
+    // utility::logInfo("Staying at same term number %u", current_term_);
+    if (term > current_term_) {
+      switchToFollower();
+      updateTerm(term);
+    }
 
     switch (role_) {
     case RaftRole::RAFT_LEADER:
       // As a leader of the same term, reject the request
       return {current_term_, false};
     case RaftRole::RAFT_FOLLOWER:
-      // Already a follower following the current leader, reject the request
-      return {current_term_, false};
+      // // Already a follower following the current leader, reject the request
+      // return {current_term_, false};
     case RaftRole::RAFT_CANDIDATE:
       // As a candidate looking for the same thing, approve it and set votedFor
       if (voted_for_ && (*voted_for_) != candidateId) {
@@ -241,7 +438,7 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
         /**
          * Only vote for other candidates with longer log entries
          */
-        if (lastLogIndex + 1 > log_.size()) {
+        if (lastLogIndex + 1 >= log_.size()) {
           voted_for_ = candidateId;
           return {current_term_, true};
         } else {
@@ -253,40 +450,39 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
     default:
       throw std::runtime_error("Unrecognized RaftRole");
     }
-
-  } else {
-    // utility::logInfo("Advancing to term number %u", term);
-    // utility::logInfo("Current role %s", roleToSV(role_));
-
-    // Larger term number
-    switch (role_) {
-    case RaftRole::RAFT_LEADER:
-      // Become a follower
-      updateTerm(term);
-      switchToFollower();
-      voted_for_ = candidateId;
-
-      // Voted
-      return {current_term_, true};
-    case RaftRole::RAFT_FOLLOWER:
-      // Already a follower, update the term number and grant it if not granted
-      updateTerm(term);
-      voted_for_ = candidateId;
-
-      // Voted
-      return {current_term_, true};
-    case RaftRole::RAFT_CANDIDATE:
-      // Also switch to follower
-      updateTerm(term);
-      switchToFollower();
-      voted_for_ = candidateId;
-
-      // Voted
-      return {current_term_, true};
-    default:
-      throw std::runtime_error("Unrecognized RaftRole");
-    }
   }
+  // else {
+  //   // utility::logInfo("Advancing to term number %u", term);
+  //   // utility::logInfo("Current role %s", roleToSV(role_));
+
+  //   // Larger term number
+  //   switch (role_) {
+  //   case RaftRole::RAFT_LEADER:
+  //     // Become a follower
+  //     updateTerm(term);
+  //     switchToFollower();
+  //     voted_for_ = candidateId;
+
+  //     // Voted
+  //     return {current_term_, true};
+  //   case RaftRole::RAFT_FOLLOWER:
+  //     // Already a follower, update the term number and grant it if not
+  //     granted updateTerm(term); voted_for_ = candidateId;
+
+  //     // Voted
+  //     return {current_term_, true};
+  //   case RaftRole::RAFT_CANDIDATE:
+  //     // Also switch to follower
+  //     updateTerm(term);
+  //     switchToFollower();
+  //     voted_for_ = candidateId;
+
+  //     // Voted
+  //     return {current_term_, true};
+  //   default:
+  //     throw std::runtime_error("Unrecognized RaftRole");
+  //   }
+  // }
 }
 
 void RaftState::handlePing(token::ServerType senderType, uint64_t senderIdx) {
@@ -303,21 +499,37 @@ void RaftState::handlePing(token::ServerType senderType, uint64_t senderIdx) {
   }
 }
 
-void RaftState::handleAddTask(std::string task) {
+std::future<bool> RaftState::handleTaskSubmission(std::string task) {
   std::unique_lock lock(mux_);
+
+  std::promise<bool> promise;
+  std::future<bool> future = promise.get_future();
 
   // Discard the request if node is not a leader
   if (role_ != RaftRole::RAFT_LEADER) {
-    return;
+    promise.set_value(false);
+    return future;
   }
 
-  utility::logInfo("Handling %s", task);
+  // Add to queue and notify sync thread to continue processing works
+  request_queue_.emplace(task, std::move(promise));
+  on_process_request_.notify_all();
 
-  // Replicate the log to other servers
+  /**
+   * @todo Wake up background thread to perform sync
+   */
 
-  // For current thread, simply append to log entry, and a background thread
-  // would handle that
-  log_.emplace_back(task, current_term_);
+  return future;
+}
+
+/**
+ * @brief In real life this destructor would never get called, since it is a
+ * long living object
+ */
+RaftState::~RaftState() {
+  if (sync_thread_.joinable()) {
+    sync_thread_.join();
+  }
 }
 
 } // namespace application
