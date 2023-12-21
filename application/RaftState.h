@@ -113,7 +113,8 @@ private:
    * Each element is a pair of request content and promise object for task
    * completion
    */
-  std::queue<std::pair<std::string, std::promise<bool>>> request_queue_;
+  std::queue<std::pair<std::string, std::promise<std::pair<bool, uint64_t>>>>
+      request_queue_;
   // Paired with request_queue_ to notify thread when is time to continue
   // processing
   // Paired with RaftState global lock mux_ for proper synchronization
@@ -195,9 +196,9 @@ public:
   void handlePing(token::ServerType senderType, uint64_t senderIdx);
 
   /**
-   * @brief Return whether current master is a leader
+   * @brief Return {true, job_id} on successful submission, {false, _} otherwise
    */
-  std::future<bool> handleTaskSubmission(std::string task);
+  std::future<std::pair<bool, uint64_t>> handleTaskSubmission(std::string task);
 
   ~RaftState();
 };

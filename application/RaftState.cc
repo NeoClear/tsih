@@ -162,7 +162,7 @@ void RaftState::syncWorker() {
    */
   const auto clearRequestQueue = [this]() {
     while (!request_queue_.empty()) {
-      request_queue_.front().second.set_value(false);
+      request_queue_.front().second.set_value({false, 0});
       request_queue_.pop();
     }
   };
@@ -180,8 +180,8 @@ void RaftState::syncWorker() {
       continue;
     }
 
-    std::pair<std::string, std::promise<bool>> currentRequest =
-        std::move(request_queue_.front());
+    std::pair<std::string, std::promise<std::pair<bool, uint64_t>>>
+        currentRequest = std::move(request_queue_.front());
 
     request_queue_.pop();
 
@@ -269,7 +269,7 @@ void RaftState::syncWorker() {
 
       // No longer leader, clear queue and wait for the next phase
       if (role_ != RaftRole::RAFT_LEADER) {
-        currentRequest.second.set_value(false);
+        currentRequest.second.set_value({false, 0});
         clearRequestQueue();
         break;
       }
@@ -307,7 +307,7 @@ void RaftState::syncWorker() {
       }
 
       if (outdated) {
-        currentRequest.second.set_value(false);
+        currentRequest.second.set_value({false, 0});
         clearRequestQueue();
         switchToFollower();
         break;
@@ -315,14 +315,14 @@ void RaftState::syncWorker() {
 
       if (failedNum * 2 >= raft_size_) {
         // Majority failed, cannot process the request
-        currentRequest.second.set_value(false);
+        currentRequest.second.set_value({false, 0});
         break;
       }
 
       // If majority have accepted the request, mark request as fullfilled
       if (std::count(requireRPC.cbegin(), requireRPC.cend(), false) * 2 >
           raft_size_) {
-        currentRequest.second.set_value(true);
+        currentRequest.second.set_value({true, logSize - 1});
         break;
       } else {
         // Otherwise, retry algorithm with more logs
@@ -520,15 +520,16 @@ void RaftState::handlePing(token::ServerType senderType, uint64_t senderIdx) {
   }
 }
 
-std::future<bool> RaftState::handleTaskSubmission(std::string task) {
+std::future<std::pair<bool, uint64_t>>
+RaftState::handleTaskSubmission(std::string task) {
   std::unique_lock lock(mux_);
 
-  std::promise<bool> promise;
-  std::future<bool> future = promise.get_future();
+  std::promise<std::pair<bool, uint64_t>> promise;
+  std::future<std::pair<bool, uint64_t>> future = promise.get_future();
 
   // Discard the request if node is not a leader
   if (role_ != RaftRole::RAFT_LEADER) {
-    promise.set_value(false);
+    promise.set_value({false, 0});
     return future;
   }
 

@@ -1,4 +1,5 @@
 #include <iostream>
+#include <latch>
 #include <memory>
 #include <string>
 
@@ -45,39 +46,37 @@ public:
 
   void submitTask(const std::string& task) {
     SubmitTaskRequest request;
-    SubmitTaskReply reply;
-
-    std::vector<ClientContext> contexts(stubs_.size());
-    std::vector<SubmitTaskReply> replies(stubs_.size());
 
     request.set_value(task);
-
-    std::mutex mux;
-    std::condition_variable cv;
-
-    uint64_t respondedNum = 0;
+    bool submitted = false;
 
     for (uint64_t i = 0; i < stubs_.size(); ++i) {
+      ClientContext context;
+      SubmitTaskReply reply;
+
+      std::latch onRequestCompleted(1);
+      bool invoked = false;
+
       stubs_[i]->async()->SubmitTask(
-          &contexts[i], &request, &replies[i],
-          [&respondedNum, &mux, &cv, &replies, i](Status status) {
-            std::unique_lock lock(mux);
-            respondedNum++;
-
-            if (replies[i].success()) {
-              absl::PrintF("Task submitted!\n");
+          &context, &request, &reply,
+          [&onRequestCompleted, &invoked](Status status) {
+            if (status.ok()) {
+              invoked = true;
             }
-
-            if (respondedNum == replies.size()) {
-              cv.notify_all();
-            }
+            onRequestCompleted.count_down();
           });
+      onRequestCompleted.wait();
+
+      if (invoked && reply.success()) {
+        submitted = true;
+        std::cout << "Job submitted: " << reply.jobid() << std::endl;
+        break;
+      }
     }
 
-    std::unique_lock lock(mux);
-    cv.wait(lock, [&respondedNum, &replies]() {
-      return respondedNum == replies.size();
-    });
+    if (!submitted) {
+      std::cout << "Failed to submit job" << std::endl;
+    }
   }
 
 private:
@@ -86,11 +85,61 @@ private:
 
 ABSL_FLAG(uint16_t, master_count, 0, "Number of masters");
 
+std::vector<std::string> split(std::string_view view) {
+  std::vector<std::string> pieces;
+
+  for (char ch : view) {
+    if (std::isspace(ch)) {
+      // Do nothing if there is already a blank string at the end
+      if (pieces.empty() || !pieces.back().empty()) {
+        pieces.emplace_back();
+      }
+    } else {
+      if (pieces.empty()) {
+        pieces.emplace_back();
+      }
+
+      pieces.back().push_back(ch);
+    }
+  }
+
+  if (!pieces.empty() && pieces.back().empty()) {
+    pieces.pop_back();
+  }
+
+  return pieces;
+}
+
 int main(int argc, char** argv) {
   absl::ParseCommandLine(argc, argv);
   TaskClient client(absl::GetFlag(FLAGS_master_count));
 
-  client.submitTask("Task");
+  std::string line;
+
+  for (;;) {
+    std::cout << "> ";
+    if (!std::getline(std::cin, line)) {
+      break;
+    }
+
+    auto pieces = split(line);
+
+    if (pieces.empty()) {
+      continue;
+    } else if (pieces.size() == 1) {
+      // Query worker count
+      // Query pending jobs
+      // Query running jobs
+      // Query failed jobs
+      // Query finished jobs
+    } else if (pieces.size() == 2) {
+      if (pieces[0] == "submit") {
+        client.submitTask(pieces[1]);
+      }
+      // Case 1: query task_id
+      // Case 2: submit task_code_filename
+    }
+  }
 
   return 0;
 }
