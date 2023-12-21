@@ -24,6 +24,7 @@
 #include "stub/ElectionStub.h"
 #include "stub/PingStub.h"
 
+#include "application/RaftLog.h"
 #include "application/TaskSchedule.h"
 
 #include "utility/Deadliner.h"
@@ -95,9 +96,9 @@ private:
    */
   uint64_t current_term_;
   std::optional<uint64_t> voted_for_;
-  std::vector<std::pair<std::string, uint64_t>> log_;
+  std::vector<std::pair<std::unique_ptr<application::RaftLog>, uint64_t>> log_;
   uint64_t commit_index_;
-  uint64_t last_applied_;
+  [[maybe_unused]] uint64_t last_applied_;
   std::vector<uint64_t> next_index_;
   std::vector<uint64_t> match_index_;
 
@@ -115,7 +116,8 @@ private:
    * Each element is a pair of request content and promise object for task
    * completion
    */
-  std::queue<std::pair<std::string, std::promise<std::pair<bool, uint64_t>>>>
+  std::queue<std::pair<std::unique_ptr<RaftLog>,
+                       std::promise<std::pair<bool, uint64_t>>>>
       request_queue_;
   // Paired with request_queue_ to notify thread when is time to continue
   // processing
@@ -158,6 +160,8 @@ private:
   bool appendEntries(
       int64_t prevLogIndex, uint64_t prevLogTerm,
       const google::protobuf::RepeatedPtrField<token::LogEntry>& appendLogs);
+
+  void commitUpTo(uint64_t endIndex);
 
   /**
    * @brief The background thread used to sync logs
@@ -203,6 +207,9 @@ public:
    * @brief Return {true, job_id} on successful submission, {false, _} otherwise
    */
   std::future<std::pair<bool, uint64_t>> handleTaskSubmission(std::string task);
+
+  token::TaskStatus handleTaskQuery(uint64_t taskId);
+  uint64_t handleServiceQuery(token::TaskStatus status);
 
   ~RaftState();
 };

@@ -23,6 +23,11 @@ public:
 
   token::TaskStatus queryTaskStatus(uint64_t taskId);
 
+  uint64_t getPendingTasks();
+  uint64_t getRunningTasks();
+  uint64_t getFinishedTasks();
+  uint64_t getWorkerCount();
+
   /**
    * @brief Return null when no suitable worker is available
    */

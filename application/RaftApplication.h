@@ -35,7 +35,9 @@ using api::RaftService;
 
 using token::AppendEntriesArgument;
 using token::AppendEntriesResult;
+using token::Count;
 using token::PingMessage;
+using token::QueryServiceRequest;
 using token::QueryTaskStatusReply;
 using token::QueryTaskStatusRequest;
 using token::RequestVoteArgument;
@@ -77,6 +79,10 @@ public:
   ServerUnaryReactor* QueryTask(CallbackServerContext* context,
                                 const QueryTaskStatusRequest* request,
                                 QueryTaskStatusReply* reply) override;
+
+  ServerUnaryReactor* QueryService(CallbackServerContext* context,
+                                   const QueryServiceRequest* request,
+                                   Count* reply) override;
 
 private:
   RaftState raft_state_;

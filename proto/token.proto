@@ -22,9 +22,31 @@ message ServerIdentity {
 
 message PingMessage { ServerIdentity server_identity = 1; }
 
+message SubmitTaskEntry {
+	string value = 1;
+}
+
+message AssignTaskEntry {
+  uint64 taskId = 1;
+	uint64 workerIndex = 2;
+}
+
+message FinishTaskEntry {
+  uint64 taskId = 1;
+	bool success = 2;
+}
+
+message TaskActionEntry {
+  oneof content {
+    SubmitTaskEntry submitTaskEntry = 1;
+    AssignTaskEntry assignTaskEntry = 2;
+    FinishTaskEntry finishTaskEntry = 3;
+  }
+}
+
 message LogEntry {
-  string content = 1;
-  uint64 term = 2;
+  uint64 term = 1;
+  TaskActionEntry content = 2;
 }
 
 message AppendEntriesArgument {
@@ -87,4 +109,12 @@ message QueryTaskStatusRequest {
 
 message QueryTaskStatusReply {
   TaskStatus taskStatus = 1;
+}
+
+message QueryServiceRequest {
+  TaskStatus taskStatus = 1;
+}
+
+message Count {
+  uint64 count = 1;
 }

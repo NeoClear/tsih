@@ -27,6 +27,7 @@ cc_library(
     srcs = ["RaftState.cc"],
     hdrs = ["RaftState.h"],
     deps = [
+        "//application:RaftLog",
         "//application:TaskSchedule",
         "//proto:api_cc_grpc",
         "//stub:AppendStub",

@@ -1,4 +1,5 @@
 #include "application/TaskSchedule.h"
+#include "utility/Logger.h"
 
 namespace application {
 
@@ -12,6 +13,8 @@ void TaskSchedule::addTask(uint64_t taskId, std::string task) {
 
   task_info_[taskId] = task;
   pending_tasks_.insert(taskId);
+
+  utility::logCrit("Task %u added", taskId);
 }
 
 void TaskSchedule::assignTask(uint64_t taskId, uint64_t workerIndex) {
@@ -49,6 +52,26 @@ token::TaskStatus TaskSchedule::queryTaskStatus(uint64_t taskId) {
   }
 
   return token::TaskStatus::UNKNOWN;
+}
+
+uint64_t TaskSchedule::getPendingTasks() {
+  std::unique_lock lock(mux_);
+  return pending_tasks_.size();
+}
+
+uint64_t TaskSchedule::getRunningTasks() {
+  std::unique_lock lock(mux_);
+  return running_tasks_.size();
+}
+
+uint64_t TaskSchedule::getFinishedTasks() {
+  std::unique_lock lock(mux_);
+  return finished_tasks_.size();
+}
+
+uint64_t TaskSchedule::getWorkerCount() {
+  std::unique_lock lock(mux_);
+  return living_workers_.size();
 }
 
 std::optional<uint64_t> TaskSchedule::findSuitableWorker() {

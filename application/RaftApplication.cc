@@ -71,4 +71,29 @@ RaftServiceImpl::SubmitTask(CallbackServerContext* context,
   return reactor;
 }
 
+ServerUnaryReactor*
+RaftServiceImpl::QueryTask(CallbackServerContext* context,
+                           const QueryTaskStatusRequest* request,
+                           QueryTaskStatusReply* reply) {
+
+  reply->set_taskstatus(raft_state_.handleTaskQuery(request->taskid()));
+
+  ServerUnaryReactor* reactor = context->DefaultReactor();
+  reactor->Finish(Status::OK);
+
+  return reactor;
+}
+
+ServerUnaryReactor*
+RaftServiceImpl::QueryService(CallbackServerContext* context,
+                              const QueryServiceRequest* request,
+                              Count* reply) {
+  reply->set_count(raft_state_.handleServiceQuery(request->taskstatus()));
+
+  ServerUnaryReactor* reactor = context->DefaultReactor();
+  reactor->Finish(Status::OK);
+
+  return reactor;
+}
+
 } // namespace application
