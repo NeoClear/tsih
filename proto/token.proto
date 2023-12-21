@@ -7,6 +7,14 @@ enum ServerType {
   WORKER = 1;
 }
 
+enum TaskStatus {
+  UNKNOWN = 0;
+  PENDING = 1;
+  RUNNING = 2;
+  FAILED = 3;
+  SUCCEEDED = 4;
+}
+
 message ServerIdentity {
   ServerType server_type = 1;
   uint64 server_index = 2;
@@ -60,4 +68,23 @@ message SubmitTaskRequest {
 message SubmitTaskReply {
   bool success = 1;
   uint64 jobId = 2;
+}
+
+message ExecuteTaskRequest {
+  uint64 taskId = 1;
+  string content = 2;
+}
+
+message ExecuteTaskReply {}
+
+message QueryWorkerStatusReply {
+  uint64 runningJobs = 1;
+}
+
+message QueryTaskStatusRequest {
+  uint64 taskId = 1;
+}
+
+message QueryTaskStatusReply {
+  TaskStatus taskStatus = 1;
 }

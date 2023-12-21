@@ -472,41 +472,9 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
       throw std::runtime_error("Unrecognized RaftRole");
     }
   }
-  // else {
-  //   // utility::logInfo("Advancing to term number %u", term);
-  //   // utility::logInfo("Current role %s", roleToSV(role_));
-
-  //   // Larger term number
-  //   switch (role_) {
-  //   case RaftRole::RAFT_LEADER:
-  //     // Become a follower
-  //     updateTerm(term);
-  //     switchToFollower();
-  //     voted_for_ = candidateId;
-
-  //     // Voted
-  //     return {current_term_, true};
-  //   case RaftRole::RAFT_FOLLOWER:
-  //     // Already a follower, update the term number and grant it if not
-  //     granted updateTerm(term); voted_for_ = candidateId;
-
-  //     // Voted
-  //     return {current_term_, true};
-  //   case RaftRole::RAFT_CANDIDATE:
-  //     // Also switch to follower
-  //     updateTerm(term);
-  //     switchToFollower();
-  //     voted_for_ = candidateId;
-
-  //     // Voted
-  //     return {current_term_, true};
-  //   default:
-  //     throw std::runtime_error("Unrecognized RaftRole");
-  //   }
-  // }
 }
 
-void RaftState::handlePing(token::ServerType senderType, uint64_t senderIdx) {
+void RaftState::handlePing(token::ServerType senderType, uint64_t senderIndex) {
   utility::logError("Received ping from leader");
 
   if (senderType == token::ServerType::MASTER) {
@@ -517,6 +485,10 @@ void RaftState::handlePing(token::ServerType senderType, uint64_t senderIdx) {
 
     // Received a ping from leader
     follower_timeout_.setDeadline(500);
+  } else {
+    assert(senderType == token::ServerType::WORKER);
+
+    task_schedule_.workerPing(senderIndex);
   }
 }
 
