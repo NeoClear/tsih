@@ -22,20 +22,15 @@ using grpc::ClientContext;
 namespace stub {
 class AppendStub {
 public:
-  AppendStub(uint64_t raftSize);
+  AppendStub(const std::vector<std::unique_ptr<RaftService::Stub>>& raftStubs);
 
-  // The actual request
-  // uint64_t term, uint64_t leaderId,
-  //                             int64_t prevLogIndex, uint64_t prevLogTerm,
-  //                             const std::vector<token::LogEntry>&
-  //                             entries, uint64_t leaderCommit,
   void sendAppendEntriesRequest(
       std::vector<bool> requestFilter, std::vector<ClientContext>& context,
       const std::vector<AppendEntriesArgument>& request,
       std::vector<AppendEntriesResult>& reply, std::vector<bool>& rpcStatus);
 
 private:
-  std::vector<std::unique_ptr<RaftService::Stub>> raft_stubs_;
+  const std::vector<std::unique_ptr<RaftService::Stub>>& raft_stubs_;
 };
 
 } // namespace stub

@@ -2,15 +2,9 @@
 
 namespace stub {
 
-AppendStub::AppendStub(uint64_t raftSize) {
-  for (uint64_t port = MASTER_BASE_PORT; port < MASTER_BASE_PORT + raftSize;
-       ++port) {
-    std::shared_ptr<Channel> channel =
-        grpc::CreateChannel(absl::StrFormat("0.0.0.0:%u", port),
-                            grpc::InsecureChannelCredentials());
-    raft_stubs_.emplace_back(RaftService::NewStub(channel));
-  }
-}
+AppendStub::AppendStub(
+    const std::vector<std::unique_ptr<RaftService::Stub>>& raftStubs)
+    : raft_stubs_(raftStubs) {}
 
 void AppendStub::sendAppendEntriesRequest(
     std::vector<bool> requestFilter, std::vector<ClientContext>& context,

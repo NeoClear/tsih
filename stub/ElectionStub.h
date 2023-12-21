@@ -18,7 +18,8 @@ using grpc::Channel;
 namespace stub {
 class ElectionStub {
 public:
-  ElectionStub(const uint64_t raftSize, const uint64_t candidateIdx);
+  ElectionStub(const std::vector<std::unique_ptr<RaftService::Stub>>& raftStubs,
+               uint64_t candidateIdx);
 
   /**
    * @brief Blocking function that returns the voting result
@@ -30,7 +31,7 @@ public:
                                   const uint64_t lastLogTerm);
 
 private:
-  std::vector<std::unique_ptr<RaftService::Stub>> raft_stubs_;
+  const std::vector<std::unique_ptr<RaftService::Stub>>& raft_stubs_;
 
   const uint64_t candidate_idx_;
 };
