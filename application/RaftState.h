@@ -24,6 +24,8 @@
 #include "stub/ElectionStub.h"
 #include "stub/PingStub.h"
 
+#include "application/TaskSchedule.h"
+
 #include "utility/Deadliner.h"
 #include "utility/Logger.h"
 #include "utility/PingHistory.h"
@@ -121,6 +123,8 @@ private:
   // This CV is notified on either: 1. more requests coming. 2. Promoted to
   // leader
   std::condition_variable on_process_request_;
+
+  application::TaskSchedule task_schedule_;
 
   /**
    * @brief Following are timers used to run specific tasks on timeout
