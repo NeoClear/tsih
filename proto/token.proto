@@ -58,6 +58,6 @@ message SubmitTaskRequest {
 }
 
 message SubmitTaskReply {
-  bool isLeader = 1;
-  bool success = 2;
+  bool success = 1;
+  uint64 jobId = 2;
 }
