@@ -20,8 +20,9 @@ service RaftService {
   rpc Ping(token.PingMessage) returns (google.protobuf.Empty) {}
   
   rpc SubmitTask(token.SubmitTaskRequest) returns (token.SubmitTaskReply) {}
-
   rpc QueryTask(token.QueryTaskStatusRequest) returns (token.QueryTaskStatusReply) {}
+
+  rpc QueryService(token.QueryServiceRequest) returns (token.Count) {}
 }
 
 service WorkerService {

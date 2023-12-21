@@ -88,21 +88,29 @@ bool RaftState::appendEntries(
     uint64_t logIdx = idx + prevLogIndex + 1;
 
     if (logIdx < log_.size()) {
-      log_[logIdx].first = appendLogs[idx].content();
+      log_[logIdx].first = RaftLog::buildRaftLog(appendLogs[idx].content());
       log_[logIdx].second = appendLogs[idx].term();
     } else {
-      log_.emplace_back(appendLogs[idx].content(), appendLogs[idx].term());
+      log_.emplace_back(RaftLog::buildRaftLog(appendLogs[idx].content()),
+                        appendLogs[idx].term());
     }
   }
 
-  std::cout << "LOG_CONTENT: ";
-  for (uint64_t i = 0; i < log_.size(); ++i) {
-    std::cout << "(" << log_[i].first << ", " << log_[i].second << ")"
-              << ", ";
-  }
-  std::cout << std::endl;
-
   return true;
+}
+
+void RaftState::commitUpTo(uint64_t endIndex) {
+  // Must be locked
+  assert(commit_index_ <= endIndex);
+
+  uint64_t applyEnd = std::min<uint64_t>(endIndex, log_.size());
+
+  for (uint64_t logIndex = last_applied_; logIndex < applyEnd; ++logIndex) {
+    log_[logIndex].first->applyLog(task_schedule_, logIndex);
+  }
+
+  last_applied_ = applyEnd;
+  commit_index_ = endIndex;
 }
 
 void RaftState::candidateTimeoutCallback() {
@@ -143,6 +151,7 @@ void RaftState::candidateTimeoutCallback() {
 
     if (current_term_ == currentTerm && maxTerm == currentTerm) {
       switchToLeader();
+
       return;
     }
 
@@ -180,13 +189,13 @@ void RaftState::syncWorker() {
       continue;
     }
 
-    std::pair<std::string, std::promise<std::pair<bool, uint64_t>>>
+    std::pair<std::unique_ptr<RaftLog>, std::promise<std::pair<bool, uint64_t>>>
         currentRequest = std::move(request_queue_.front());
 
     request_queue_.pop();
 
     // Current master node is still a leader, append to log
-    log_.emplace_back(currentRequest.first, current_term_);
+    log_.emplace_back(std::move(currentRequest.first), current_term_);
 
     uint64_t logSize = log_.size();
 
@@ -224,7 +233,9 @@ void RaftState::syncWorker() {
         for (uint64_t copyIdx = next_index_[i]; copyIdx < log_.size();
              ++copyIdx) {
           token::LogEntry* entryIt = requests[i].add_entries();
-          entryIt->set_content(log_[copyIdx].first);
+          // entryIt->set_content(log_[copyIdx].first);
+          *entryIt->mutable_content() = log_[copyIdx].first->buildLogEntry();
+
           entryIt->set_term(log_[copyIdx].second);
         }
       }
@@ -323,6 +334,8 @@ void RaftState::syncWorker() {
       if (std::count(requireRPC.cbegin(), requireRPC.cend(), false) * 2 >
           raft_size_) {
         currentRequest.second.set_value({true, logSize - 1});
+        // Do not forget to update the commit log
+        commitUpTo(logSize);
         break;
       } else {
         // Otherwise, retry algorithm with more logs
@@ -353,18 +366,45 @@ void RaftState::followerTimeoutCallback() {
 }
 
 void RaftState::leaderPeriodicCallback() {
+  uint64_t logSize;
+
   {
     std::unique_lock lock(mux_);
 
     if (role_ != RaftRole::RAFT_LEADER) {
       return;
     }
+
+    logSize = log_.size();
   }
 
   // Send to all followers a ping message
   // Sending ping messages
-  utility::logInfo("Pinging others");
-  ping_stub_.ping();
+  // ping_stub_.ping();
+
+  // Send empty AppendEntries rpc to followers
+  std::vector<ClientContext> contexts(raft_size_);
+  std::vector<AppendEntriesArgument> requests(raft_size_);
+  std::vector<AppendEntriesResult> replies(raft_size_);
+  std::vector<bool> rpcStatus(raft_size_);
+  std::vector<bool> requireRPC(raft_size_, true);
+  requireRPC[candidate_idx_] = false;
+
+  // Prepare requests
+  for (uint64_t i = 0; i < raft_size_; ++i) {
+    if (!requireRPC[i]) {
+      continue;
+    }
+
+    requests[i].set_term(current_term_);
+    requests[i].set_leaderid(candidate_idx_);
+    requests[i].set_prevlogindex(static_cast<int64_t>(logSize) - 1ll);
+    requests[i].set_prevlogterm(logSize == 0 ? 0 : log_[logSize - 1].second);
+    requests[i].set_leadercommit(commit_index_);
+  }
+
+  append_stub_.sendAppendEntriesRequest(requireRPC, contexts, requests, replies,
+                                        rpcStatus);
 
   leader_periodic_.setDeadline(100);
 }
@@ -409,6 +449,11 @@ std::pair<uint64_t, bool> RaftState::handleAppendEntries(
     throw std::runtime_error("No two leader within the same term");
   case RaftRole::RAFT_FOLLOWER: {
     bool success = appendEntries(prevLogIndex, prevLogTerm, entries);
+
+    // Update commit_index_ and apply changes
+    if (success) {
+      commitUpTo(leaderCommit);
+    }
 
     // Reset a timeout
     follower_timeout_.setDeadline(500);
@@ -505,8 +550,12 @@ RaftState::handleTaskSubmission(std::string task) {
     return future;
   }
 
+  token::TaskActionEntry actionEntry;
+  actionEntry.mutable_submittaskentry()->set_value(task);
+
   // Add to queue and notify sync thread to continue processing works
-  request_queue_.emplace(task, std::move(promise));
+  request_queue_.emplace(RaftLog::buildRaftLog(actionEntry),
+                         std::move(promise));
   on_process_request_.notify_all();
 
   /**
@@ -514,6 +563,27 @@ RaftState::handleTaskSubmission(std::string task) {
    */
 
   return future;
+}
+
+token::TaskStatus RaftState::handleTaskQuery(uint64_t taskId) {
+  return task_schedule_.queryTaskStatus(taskId);
+}
+
+uint64_t RaftState::handleServiceQuery(token::TaskStatus status) {
+  switch (status) {
+  case token::TaskStatus::PENDING:
+    return task_schedule_.getPendingTasks();
+  case token::TaskStatus::RUNNING:
+    return task_schedule_.getRunningTasks();
+  case token::TaskStatus::FAILED:
+    return task_schedule_.getFinishedTasks();
+  case token::TaskStatus::SUCCEEDED:
+    return task_schedule_.getFinishedTasks();
+  case token::TaskStatus::UNKNOWN:
+    return task_schedule_.getWorkerCount();
+  default:
+    return UINT64_MAX;
+  }
 }
 
 /**

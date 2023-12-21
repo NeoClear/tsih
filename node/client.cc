@@ -44,6 +44,95 @@ public:
     }
   }
 
+  void queryService(token::TaskStatus status) {
+    token::QueryServiceRequest request;
+
+    request.set_taskstatus(status);
+
+    bool processed = false;
+
+    for (uint64_t i = 0; i < stubs_.size(); ++i) {
+      ClientContext context;
+      token::Count reply;
+
+      std::latch onRequestCompleted(1);
+      bool invoked = false;
+
+      stubs_[i]->async()->QueryService(
+          &context, &request, &reply,
+          [&onRequestCompleted, &invoked](Status status) {
+            if (status.ok()) {
+              invoked = true;
+            }
+            onRequestCompleted.count_down();
+          });
+
+      onRequestCompleted.wait();
+
+      std::string statusString;
+
+      if (invoked) {
+        std::cout << "Metrics: " << reply.count() << std::endl;
+        processed = true;
+        break;
+      }
+    }
+
+    if (!processed) {
+      std::cout << "Unable to obtain metrics" << std::endl;
+    }
+  }
+
+  void queryTask(uint64_t taskId) {
+    token::QueryTaskStatusRequest request;
+
+    request.set_taskid(taskId);
+
+    for (uint64_t i = 0; i < stubs_.size(); ++i) {
+      ClientContext context;
+      token::QueryTaskStatusReply reply;
+
+      std::latch onRequestCompleted(1);
+      bool invoked = false;
+
+      stubs_[i]->async()->QueryTask(
+          &context, &request, &reply,
+          [&onRequestCompleted, &invoked](Status status) {
+            if (status.ok()) {
+              invoked = true;
+            }
+            onRequestCompleted.count_down();
+          });
+
+      onRequestCompleted.wait();
+
+      std::string statusString;
+
+      if (invoked) {
+        switch (reply.taskstatus()) {
+        case token::TaskStatus::PENDING:
+          statusString = "PENDING";
+          break;
+        case token::TaskStatus::RUNNING:
+          statusString = "RUNNING";
+          break;
+        case token::TaskStatus::FAILED:
+          statusString = "FAILED";
+          break;
+        case token::TaskStatus::SUCCEEDED:
+          statusString = "SUCCEEDED";
+          break;
+        case token::TaskStatus::UNKNOWN:
+          statusString = "UNKNOWN";
+          break;
+        }
+
+        std::cout << "Job status: " << statusString << std::endl;
+        break;
+      }
+    }
+  }
+
   void submitTask(const std::string& task) {
     SubmitTaskRequest request;
 
@@ -132,12 +221,23 @@ int main(int argc, char** argv) {
       // Query running jobs
       // Query failed jobs
       // Query finished jobs
+      if (pieces.front() == "worker") {
+        client.queryService(token::TaskStatus::UNKNOWN);
+      } else if (pieces.front() == "pending") {
+        client.queryService(token::TaskStatus::PENDING);
+      } else if (pieces.front() == "running") {
+        client.queryService(token::TaskStatus::RUNNING);
+      } else if (pieces.front() == "finished") {
+        client.queryService(token::TaskStatus::SUCCEEDED);
+      }
     } else if (pieces.size() == 2) {
       if (pieces[0] == "submit") {
+        // Case 1: submit task_code_filename
         client.submitTask(pieces[1]);
+      } else if (pieces[0] == "query") {
+        // Case 2: query task_id
+        client.queryTask(std::stoi(pieces[1]));
       }
-      // Case 1: query task_id
-      // Case 2: submit task_code_filename
     }
   }
 

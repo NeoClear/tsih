@@ -68,7 +68,7 @@ std::pair<bool, uint64_t> ElectionStub::elect(const uint64_t term,
 
   uint64_t maxTerm = term;
 
-  utility::logError("Vote count %u", votedNum);
+  // utility::logError("Vote count %u", votedNum);
 
   for (uint64_t i = 0; i < raft_stubs_.size(); ++i) {
     if (i == candidate_idx_) {
