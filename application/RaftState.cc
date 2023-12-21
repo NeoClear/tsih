@@ -5,6 +5,26 @@
 
 namespace application {
 
+std::vector<std::unique_ptr<RaftService::Stub>>
+RaftState::initRaftStubs(uint64_t raftSize, uint64_t candidateIdx) {
+  std::vector<std::unique_ptr<RaftService::Stub>> stubs;
+
+  for (uint64_t port = MASTER_BASE_PORT; port < MASTER_BASE_PORT + raftSize;
+       ++port) {
+    if (port == MASTER_BASE_PORT + candidateIdx) {
+      stubs.emplace_back(nullptr);
+    } else {
+
+      std::shared_ptr<Channel> channel =
+          grpc::CreateChannel(absl::StrFormat("0.0.0.0:%u", port),
+                              grpc::InsecureChannelCredentials());
+      stubs.emplace_back(RaftService::NewStub(channel));
+    }
+  }
+
+  return stubs;
+}
+
 void RaftState::switchToLeader() {
   if (role_ == RaftRole::RAFT_LEADER) {
     return;
@@ -353,13 +373,14 @@ RaftState::RaftState(uint64_t raftSize, uint64_t candidateIdx)
     : raft_size_(raftSize), candidate_idx_(candidateIdx),
       role_(RaftRole::RAFT_CANDIDATE), current_term_(0), commit_index_(0),
       last_applied_(0), next_index_(raft_size_), match_index_(raft_size_),
-      // master_mutex_(raft_size_),
+      raft_stubs_(initRaftStubs(raft_size_, candidate_idx_)),
       candidate_timeout_(std::bind(&RaftState::candidateTimeoutCallback, this)),
       follower_timeout_(std::bind(&RaftState::followerTimeoutCallback, this)),
       leader_periodic_(std::bind(&RaftState::leaderPeriodicCallback, this)),
-      ping_stub_(raft_size_, token::ServerType::MASTER, candidate_idx_),
-      append_stub_(raft_size_), election_stub_(raft_size_, candidate_idx_),
+      ping_stub_(raft_stubs_, token::ServerType::MASTER, candidate_idx_),
+      append_stub_(raft_stubs_), election_stub_(raft_stubs_, candidate_idx_),
       sync_thread_(std::bind(&RaftState::syncWorker, this)) {
+
   candidate_timeout_.setRandomDeadline(200, 2000);
 }
 

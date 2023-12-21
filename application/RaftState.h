@@ -98,7 +98,14 @@ private:
   uint64_t last_applied_;
   std::vector<uint64_t> next_index_;
   std::vector<uint64_t> match_index_;
-  // std::vector<std::mutex> master_mutex_;
+
+  /**
+   * @brief Raft stubs
+   */
+  const std::vector<std::unique_ptr<RaftService::Stub>> raft_stubs_;
+
+  static std::vector<std::unique_ptr<RaftService::Stub>>
+  initRaftStubs(uint64_t raftSize, uint64_t candidateIdx);
 
   /**
    * @brief The queue holding requests

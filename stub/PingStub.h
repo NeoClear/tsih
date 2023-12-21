@@ -15,13 +15,13 @@ using grpc::Channel;
 namespace stub {
 class PingStub {
 public:
-  PingStub(const uint16_t master_count, const token::ServerType type,
-           const uint64_t candidateIdx);
+  PingStub(const std::vector<std::unique_ptr<RaftService::Stub>>& raftStubs,
+           token::ServerType type, uint64_t candidateIdx);
 
   void ping();
 
 private:
-  std::vector<std::unique_ptr<RaftService::Stub>> master_stubs_;
+  const std::vector<std::unique_ptr<RaftService::Stub>>& raft_stubs_;
 
   const token::ServerType type_;
   const uint64_t candidate_idx_;

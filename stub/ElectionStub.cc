@@ -11,20 +11,10 @@ using token::PingMessage;
 
 namespace stub {
 
-ElectionStub::ElectionStub(const uint64_t raftSize, const uint64_t candidateIdx)
-    : candidate_idx_(candidateIdx) {
-  for (uint64_t port = MASTER_BASE_PORT; port < MASTER_BASE_PORT + raftSize;
-       ++port) {
-    if (port == MASTER_BASE_PORT + candidate_idx_) {
-      continue;
-    }
-
-    std::shared_ptr<Channel> channel =
-        grpc::CreateChannel(absl::StrFormat("0.0.0.0:%u", port),
-                            grpc::InsecureChannelCredentials());
-    raft_stubs_.emplace_back(api::RaftService::NewStub(channel));
-  }
-}
+ElectionStub::ElectionStub(
+    const std::vector<std::unique_ptr<RaftService::Stub>>& raftStubs,
+    uint64_t candidateIdx)
+    : raft_stubs_(raftStubs), candidate_idx_(candidateIdx) {}
 
 std::pair<bool, uint64_t> ElectionStub::elect(const uint64_t term,
                                               const int64_t lastLogIndex,
@@ -48,6 +38,10 @@ std::pair<bool, uint64_t> ElectionStub::elect(const uint64_t term,
   std::condition_variable cv;
 
   for (uint64_t i = 0; i < raft_stubs_.size(); ++i) {
+    if (i == candidate_idx_) {
+      continue;
+    }
+
     raft_stubs_[i]->async()->RequestVote(
         &contexts[i], &request, &replies[i],
         [&mux, &respondedNum, &replies, &votedNum, &cv,
@@ -56,15 +50,11 @@ std::pair<bool, uint64_t> ElectionStub::elect(const uint64_t term,
 
           respondedNum++;
 
-          if (status.ok()) {
-            utility::logError("Managed to connect!!");
-          }
-
           if (status.ok() && replies[i].votegranted()) {
             votedNum++;
           }
 
-          if (respondedNum == replies.size()) {
+          if (respondedNum + 1 == replies.size()) {
             cv.notify_all();
           }
         });
@@ -73,18 +63,22 @@ std::pair<bool, uint64_t> ElectionStub::elect(const uint64_t term,
   std::unique_lock lock(mux);
 
   cv.wait(lock, [&replies, &respondedNum]() {
-    return respondedNum == replies.size();
+    return respondedNum + 1 == replies.size();
   });
 
   uint64_t maxTerm = term;
 
   utility::logError("Vote count %u", votedNum);
 
-  for (const auto& reply : replies) {
-    maxTerm = std::max(maxTerm, reply.term());
+  for (uint64_t i = 0; i < raft_stubs_.size(); ++i) {
+    if (i == candidate_idx_) {
+      continue;
+    }
+
+    maxTerm = std::max(maxTerm, replies[i].term());
   }
 
-  return {votedNum * 2 >= replies.size(), maxTerm};
+  return {(votedNum + 1) * 2 > replies.size(), maxTerm};
 }
 
 } // namespace stub
