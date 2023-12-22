@@ -30,13 +30,13 @@ ServerUnaryReactor*
 WorkerServiceImpl::ExecuteTask(CallbackServerContext* context,
                                const ExecuteTaskRequest* request,
                                ExecuteTaskReply* reply) {
-  utility::logInfo("Receiving task %u, %s", request->taskid(),
-                   request->content());
-
   {
     std::unique_lock lock(mux_);
 
-    running_task_ids_.insert(request->taskid());
+    if (!running_task_ids_.count(request->taskid())) {
+      utility::logInfo("Executing task");
+      running_task_ids_.insert(request->taskid());
+    }
   }
 
   ServerUnaryReactor* reactor = context->DefaultReactor();

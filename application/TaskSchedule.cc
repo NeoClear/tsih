@@ -1,4 +1,5 @@
 #include "application/TaskSchedule.h"
+#include "stub/ExecuteTaskStub.h"
 #include "utility/Logger.h"
 
 namespace application {
@@ -18,13 +19,30 @@ void TaskSchedule::addTask(uint64_t taskId, std::string task) {
 }
 
 void TaskSchedule::assignTask(uint64_t taskId, uint64_t workerIndex) {
-  std::unique_lock lock(mux_);
+  std::string taskContent;
 
-  assert(task_info_.count(taskId));
-  assert(pending_tasks_.count(taskId));
+  {
+    std::unique_lock lock(mux_);
 
-  pending_tasks_.erase(taskId);
-  running_tasks_[taskId] = workerIndex;
+    // If already assigned or does not exist, do nothing
+    if (!task_info_.count(taskId) || !pending_tasks_.count(taskId)) {
+      utility::logInfo("Why would task fail: %u, %u", task_info_.size(),
+                       pending_tasks_.size());
+      return;
+    }
+
+    assert(task_info_.count(taskId));
+    assert(pending_tasks_.count(taskId));
+
+    taskContent = task_info_[taskId];
+
+    pending_tasks_.erase(taskId);
+    running_tasks_[taskId] = workerIndex;
+  }
+
+  utility::logInfo("Task assigned");
+
+  stub::ExecuteTaskStub::executeTask(workerIndex, taskId, taskContent);
 }
 
 void TaskSchedule::finishTask(uint64_t taskId, bool success) {
@@ -97,6 +115,27 @@ std::optional<uint64_t> TaskSchedule::findSuitableWorker() {
   }
 
   return selectedWorker;
+}
+
+absl::flat_hash_map<uint64_t, uint64_t> TaskSchedule::getTaskAssignment() {
+  absl::flat_hash_map<uint64_t, uint64_t> taskAssignment;
+
+  {
+    std::unique_lock lock(mux_);
+
+    // Find any worker with less than 4 tasks pending
+    for (uint64_t workerIndex : living_workers_) {
+      if (taskAssignment.size() > 4 || pending_tasks_.empty()) {
+        break;
+      }
+
+      if (worker_load_[workerIndex] < 4) {
+        taskAssignment[*pending_tasks_.begin()] = workerIndex;
+      }
+    }
+  }
+
+  return taskAssignment;
 }
 
 void TaskSchedule::workerPing(uint64_t workerIndex,

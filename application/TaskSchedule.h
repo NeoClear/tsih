@@ -33,6 +33,8 @@ public:
    */
   std::optional<uint64_t> findSuitableWorker();
 
+  absl::flat_hash_map<uint64_t, uint64_t> getTaskAssignment();
+
   void workerPing(uint64_t workerIndex, std::vector<uint64_t> runningTaskIds);
 
 private:

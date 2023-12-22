@@ -43,6 +43,7 @@ void RaftState::switchToLeader() {
   // match_index_ = std::vector<uint64_t>(raft_size_, 0ull);
   utility::logCrit("Become leader on term %u", current_term_);
   leader_periodic_.setDeadline(100);
+  task_execution_periodic_.setDeadline(1000);
 }
 
 void RaftState::switchToFollower() {
@@ -107,6 +108,10 @@ void RaftState::commitUpTo(uint64_t endIndex) {
 
   for (uint64_t logIndex = last_applied_; logIndex < applyEnd; ++logIndex) {
     log_[logIndex].first->applyLog(task_schedule_, logIndex);
+  }
+
+  if (last_applied_ != applyEnd) {
+    utility::logInfo("Commited up to %u", applyEnd);
   }
 
   last_applied_ = applyEnd;
@@ -408,6 +413,33 @@ void RaftState::leaderPeriodicCallback() {
   leader_periodic_.setDeadline(100);
 }
 
+void RaftState::taskExecutionPeriodicCallback() {
+  {
+    std::unique_lock lock(mux_);
+
+    if (role_ != RaftRole::RAFT_LEADER) {
+      return;
+    }
+
+    absl::flat_hash_map<uint64_t, uint64_t> taskAssignment =
+        task_schedule_.getTaskAssignment();
+
+    for (const auto [taskId, workerIndex] : taskAssignment) {
+      token::TaskActionEntry actionEntry;
+      actionEntry.mutable_assigntaskentry()->set_taskid(taskId);
+      actionEntry.mutable_assigntaskentry()->set_workerindex(workerIndex);
+
+      // Add to queue and notify sync thread to continue processing works
+      request_queue_.emplace(RaftLog::buildRaftLog(actionEntry),
+                             std::promise<std::pair<bool, uint64_t>>());
+    }
+
+    on_process_request_.notify_all();
+  }
+
+  task_execution_periodic_.setDeadline(1000);
+}
+
 RaftState::RaftState(uint64_t raftSize, uint64_t candidateIdx)
     : raft_size_(raftSize), candidate_idx_(candidateIdx),
       role_(RaftRole::RAFT_CANDIDATE), current_term_(0), commit_index_(0),
@@ -416,6 +448,8 @@ RaftState::RaftState(uint64_t raftSize, uint64_t candidateIdx)
       candidate_timeout_(std::bind(&RaftState::candidateTimeoutCallback, this)),
       follower_timeout_(std::bind(&RaftState::followerTimeoutCallback, this)),
       leader_periodic_(std::bind(&RaftState::leaderPeriodicCallback, this)),
+      task_execution_periodic_(
+          std::bind(&RaftState::taskExecutionPeriodicCallback, this)),
       append_stub_(raft_stubs_), election_stub_(raft_stubs_, candidate_idx_),
       sync_thread_(std::bind(&RaftState::syncWorker, this)) {
 
@@ -491,10 +525,11 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
       // As a leader of the same term, reject the request
       return {current_term_, false};
     case RaftRole::RAFT_FOLLOWER:
-      // // Already a follower following the current leader, reject the request
-      // return {current_term_, false};
+      // // Already a follower following the current leader, reject the
+      // request return {current_term_, false};
     case RaftRole::RAFT_CANDIDATE:
-      // As a candidate looking for the same thing, approve it and set votedFor
+      // As a candidate looking for the same thing, approve it and set
+      // votedFor
       if (voted_for_ && (*voted_for_) != candidateId) {
         // Voted for someone else, reject it
         return {current_term_, false};
@@ -519,7 +554,7 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
 
 void RaftState::handlePing(uint64_t workerIndex,
                            std::vector<uint64_t> runningTaskIds) {
-  utility::logError("Received ping from leader");
+  // utility::logError("Received ping from leader");
 
   task_schedule_.workerPing(workerIndex, runningTaskIds);
 }
