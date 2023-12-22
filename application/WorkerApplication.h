@@ -69,6 +69,8 @@ private:
 
   std::vector<std::unique_ptr<RaftService::Stub>>
   initRaftStubs(uint64_t raftSize);
+
+  void taskExecutor(uint64_t taskId, std::string taskContent);
 };
 
 } // namespace application
