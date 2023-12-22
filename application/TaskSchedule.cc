@@ -48,7 +48,11 @@ void TaskSchedule::assignTask(uint64_t taskId, uint64_t workerIndex) {
 void TaskSchedule::finishTask(uint64_t taskId, bool success) {
   std::unique_lock lock(mux_);
 
-  assert(pending_tasks_.count(taskId));
+  utility::logInfo("Finished job %u with %s", taskId,
+                   success ? "success" : "fail");
+
+  assert(running_tasks_.count(taskId));
+  running_tasks_.erase(taskId);
 
   finished_tasks_[taskId] = success;
 }

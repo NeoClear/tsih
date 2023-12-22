@@ -210,6 +210,8 @@ public:
    * @brief Return {true, job_id} on successful submission, {false, _} otherwise
    */
   std::future<std::pair<bool, uint64_t>> handleTaskSubmission(std::string task);
+  std::future<std::pair<bool, uint64_t>> handleTaskCompletion(uint64_t taskId,
+                                                              bool success);
 
   token::TaskStatus handleTaskQuery(uint64_t taskId);
   uint64_t handleServiceQuery(token::TaskStatus status);

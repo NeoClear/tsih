@@ -587,6 +587,35 @@ RaftState::handleTaskSubmission(std::string task) {
   return future;
 }
 
+std::future<std::pair<bool, uint64_t>>
+RaftState::handleTaskCompletion(uint64_t taskId, bool success) {
+  std::unique_lock lock(mux_);
+
+  std::promise<std::pair<bool, uint64_t>> promise;
+  std::future<std::pair<bool, uint64_t>> future = promise.get_future();
+
+  // Discard the request if node is not a leader
+  if (role_ != RaftRole::RAFT_LEADER) {
+    promise.set_value({false, 0});
+    return future;
+  }
+
+  token::TaskActionEntry actionEntry;
+  actionEntry.mutable_finishtaskentry()->set_taskid(taskId);
+  actionEntry.mutable_finishtaskentry()->set_success(success);
+
+  // Add to queue and notify sync thread to continue processing works
+  request_queue_.emplace(RaftLog::buildRaftLog(actionEntry),
+                         std::move(promise));
+  on_process_request_.notify_all();
+
+  /**
+   * @todo Wake up background thread to perform sync
+   */
+
+  return future;
+}
+
 token::TaskStatus RaftState::handleTaskQuery(uint64_t taskId) {
   return task_schedule_.queryTaskStatus(taskId);
 }
