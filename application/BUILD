@@ -76,6 +76,7 @@ cc_library(
     deps = [
         "//proto:api_cc_grpc",
         "//stub:AppendStub",
+        "//stub:ExecuteTaskStub",
         "//stub:ElectionStub",
         "//stub:PingStub",
         "//utility:Deadliner",

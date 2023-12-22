@@ -135,9 +135,13 @@ private:
   utility::Deadliner follower_timeout_;
   utility::Deadliner leader_periodic_;
 
+  utility::Deadliner task_execution_periodic_;
+
   void candidateTimeoutCallback();
   void followerTimeoutCallback();
   void leaderPeriodicCallback();
+
+  void taskExecutionPeriodicCallback();
 
   /**
    * @brief Following stubs are used to communicate with other nodes
