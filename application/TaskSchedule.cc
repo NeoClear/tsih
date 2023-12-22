@@ -99,10 +99,13 @@ std::optional<uint64_t> TaskSchedule::findSuitableWorker() {
   return selectedWorker;
 }
 
-void TaskSchedule::workerPing(uint64_t workerIndex) {
+void TaskSchedule::workerPing(uint64_t workerIndex,
+                              std::vector<uint64_t> runningTaskIds) {
   std::unique_lock lock(mux_);
 
   pinged_workers_.insert(workerIndex);
+
+  worker_load_[workerIndex] = runningTaskIds.size();
 }
 
 void TaskSchedule::workerTimeoutCallback() {

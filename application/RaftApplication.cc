@@ -44,8 +44,12 @@ RaftServiceImpl::RequestVote(CallbackServerContext* context,
 ServerUnaryReactor* RaftServiceImpl::Ping(CallbackServerContext* context,
                                           const PingMessage* request,
                                           google::protobuf::Empty* reply) {
-  raft_state_.handlePing(request->server_identity().server_type(),
-                         request->server_identity().server_index());
+  assert(request->server_identity().server_type() == token::ServerType::WORKER);
+  std::vector<uint64_t> runningTaskIds(request->runningtaskids().begin(),
+                                       request->runningtaskids().end());
+
+  raft_state_.handlePing(request->server_identity().server_index(),
+                         runningTaskIds);
 
   ServerUnaryReactor* reactor = context->DefaultReactor();
   reactor->Finish(Status::OK);

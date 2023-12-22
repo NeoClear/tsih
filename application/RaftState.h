@@ -144,7 +144,6 @@ private:
    * Communications are multiplexed but synchronous, thus must be called outside
    * of lock protection, otherwise could result in deadlock
    */
-  stub::PingStub ping_stub_;
   stub::AppendStub append_stub_;
   stub::ElectionStub election_stub_;
 
@@ -201,7 +200,7 @@ public:
                                               int64_t lastLogIndex,
                                               uint64_t lastLogTerm);
 
-  void handlePing(token::ServerType senderType, uint64_t senderIdx);
+  void handlePing(uint64_t workerIndex, std::vector<uint64_t> runningTaskIds);
 
   /**
    * @brief Return {true, job_id} on successful submission, {false, _} otherwise

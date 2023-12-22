@@ -15,7 +15,7 @@ PingStub::PingStub(
     token::ServerType type, uint64_t candidateIdx)
     : raft_stubs_(raftStubs), type_(type), candidate_idx_(candidateIdx) {}
 
-void PingStub::ping() {
+void PingStub::ping(const std::vector<uint64_t>& runningTaskIds) {
   PingMessage pingMsg;
 
   token::ServerIdentity identity;
@@ -24,6 +24,9 @@ void PingStub::ping() {
   identity.set_server_index(candidate_idx_);
 
   pingMsg.mutable_server_identity()->CopyFrom(identity);
+  std::ranges::for_each(runningTaskIds, [&pingMsg](uint64_t runningTaskId) {
+    pingMsg.add_runningtaskids(runningTaskId);
+  });
 
   std::vector<ClientContext> contexts(raft_stubs_.size());
   google::protobuf::Empty empty;
