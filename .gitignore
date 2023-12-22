@@ -2,3 +2,5 @@ bazel-*
 
 **/.vscode/
 .DS_Store
+
+output/**

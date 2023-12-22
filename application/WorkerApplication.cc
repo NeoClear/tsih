@@ -30,14 +30,10 @@ ServerUnaryReactor*
 WorkerServiceImpl::ExecuteTask(CallbackServerContext* context,
                                const ExecuteTaskRequest* request,
                                ExecuteTaskReply* reply) {
-  {
-    std::unique_lock lock(mux_);
-
-    if (!running_task_ids_.count(request->taskid())) {
-      utility::logInfo("Executing task");
-      running_task_ids_.insert(request->taskid());
-    }
-  }
+  std::thread taskExeutionThread(std::bind(&WorkerServiceImpl::taskExecutor,
+                                           this, request->taskid(),
+                                           request->content()));
+  taskExeutionThread.detach();
 
   ServerUnaryReactor* reactor = context->DefaultReactor();
   reactor->Finish(Status::OK);
@@ -82,6 +78,37 @@ void WorkerServiceImpl::pingTimeoutCallback() {
   ping_stub_.ping(runningTasks);
 
   ping_timeout_.setDeadline(100);
+}
+
+void WorkerServiceImpl::taskExecutor(uint64_t taskId, std::string taskContent) {
+  {
+    std::unique_lock lock(mux_);
+
+    if (running_task_ids_.count(taskId)) {
+      return;
+    }
+
+    running_task_ids_.insert(taskId);
+  }
+
+  utility::logInfo("Executing task (%u, %s)", taskId, taskContent);
+
+  // Run the script
+  int r = system(absl::StrFormat("./task/%s 2>&1 > ./output/task_%u.txt",
+                                 taskContent, taskId)
+                     .c_str());
+
+  utility::logInfo("Finished task (%u, %s)", taskId, taskContent);
+
+  {
+    std::unique_lock lock(mux_);
+
+    assert(running_task_ids_.count(taskId));
+
+    running_task_ids_.erase(taskId);
+  }
+
+  // Send completion message to raft group
 }
 
 } // namespace application
