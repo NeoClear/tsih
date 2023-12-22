@@ -71,6 +71,8 @@ private:
   initRaftStubs(uint64_t raftSize);
 
   void taskExecutor(uint64_t taskId, std::string taskContent);
+
+  bool finishTask(uint64_t taskId, bool success);
 };
 
 } // namespace application

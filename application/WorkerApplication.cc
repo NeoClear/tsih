@@ -1,5 +1,7 @@
 #include "application/WorkerApplication.h"
 
+#include <latch>
+
 using grpc::Status;
 
 namespace application {
@@ -109,6 +111,46 @@ void WorkerServiceImpl::taskExecutor(uint64_t taskId, std::string taskContent) {
   }
 
   // Send completion message to raft group
+  bool finishSuccess = finishTask(taskId, r == 0);
+
+  if (finishSuccess) {
+    utility::logInfo("Job status updated (%u, %s)", taskId,
+                     r == 0 ? "success" : "fail");
+  } else {
+    utility::logInfo("Unable to contact masters");
+  }
+}
+
+bool WorkerServiceImpl::finishTask(uint64_t taskId, bool success) {
+  token::FinishTaskRequest request;
+
+  request.set_taskid(taskId);
+  request.set_success(success);
+
+  for (uint64_t i = 0; i < raft_stubs_.size(); ++i) {
+    grpc::ClientContext context;
+    token::FinishTaskReply reply;
+
+    std::latch onRequestCompleted(1);
+    bool invoked = false;
+
+    raft_stubs_[i]->async()->FinishTask(
+        &context, &request, &reply,
+        [&onRequestCompleted, &invoked](Status status) {
+          if (status.ok()) {
+            invoked = true;
+          }
+          onRequestCompleted.count_down();
+        });
+
+    onRequestCompleted.wait();
+
+    if (invoked && reply.success()) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 } // namespace application

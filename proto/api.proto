@@ -23,6 +23,9 @@ service RaftService {
   rpc QueryTask(token.QueryTaskStatusRequest) returns (token.QueryTaskStatusReply) {}
 
   rpc QueryService(token.QueryServiceRequest) returns (token.Count) {}
+
+  // Sent by worker to notify raft group of task completion
+  rpc FinishTask(token.FinishTaskRequest) returns (token.FinishTaskReply) {}
 }
 
 service WorkerService {

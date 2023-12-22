@@ -100,4 +100,22 @@ RaftServiceImpl::QueryService(CallbackServerContext* context,
   return reactor;
 }
 
+ServerUnaryReactor*
+RaftServiceImpl::FinishTask(CallbackServerContext* context,
+                            const FinishTaskRequest* request,
+                            FinishTaskReply* reply) {
+
+  std::future<std::pair<bool, uint64_t>> futureSuccess =
+      raft_state_.handleTaskCompletion(request->taskid(), request->success());
+
+  auto result = futureSuccess.get();
+
+  reply->set_success(result.first);
+
+  ServerUnaryReactor* reactor = context->DefaultReactor();
+  reactor->Finish(Status::OK);
+
+  return reactor;
+}
+
 } // namespace application

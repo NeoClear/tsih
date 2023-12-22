@@ -121,3 +121,12 @@ message QueryServiceRequest {
 message Count {
   uint64 count = 1;
 }
+
+message FinishTaskRequest {
+  uint64 taskId = 1;
+  bool success = 2;
+}
+
+message FinishTaskReply {
+  bool success = 1;
+}
