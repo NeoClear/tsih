@@ -20,7 +20,10 @@ message ServerIdentity {
   uint64 server_index = 2;
 }
 
-message PingMessage { ServerIdentity server_identity = 1; }
+message PingMessage {
+  ServerIdentity server_identity = 1;
+  repeated uint64 runningTaskIds = 2;
+}
 
 message SubmitTaskEntry {
 	string value = 1;

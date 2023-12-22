@@ -380,7 +380,6 @@ void RaftState::leaderPeriodicCallback() {
 
   // Send to all followers a ping message
   // Sending ping messages
-  // ping_stub_.ping();
 
   // Send empty AppendEntries rpc to followers
   std::vector<ClientContext> contexts(raft_size_);
@@ -417,7 +416,6 @@ RaftState::RaftState(uint64_t raftSize, uint64_t candidateIdx)
       candidate_timeout_(std::bind(&RaftState::candidateTimeoutCallback, this)),
       follower_timeout_(std::bind(&RaftState::followerTimeoutCallback, this)),
       leader_periodic_(std::bind(&RaftState::leaderPeriodicCallback, this)),
-      ping_stub_(raft_stubs_, token::ServerType::MASTER, candidate_idx_),
       append_stub_(raft_stubs_), election_stub_(raft_stubs_, candidate_idx_),
       sync_thread_(std::bind(&RaftState::syncWorker, this)) {
 
@@ -519,22 +517,11 @@ std::pair<uint64_t, bool> RaftState::handleVoteRequest(uint64_t term,
   }
 }
 
-void RaftState::handlePing(token::ServerType senderType, uint64_t senderIndex) {
+void RaftState::handlePing(uint64_t workerIndex,
+                           std::vector<uint64_t> runningTaskIds) {
   utility::logError("Received ping from leader");
 
-  if (senderType == token::ServerType::MASTER) {
-    // Switch to follower
-    std::unique_lock lock(mux_);
-
-    switchToFollower();
-
-    // Received a ping from leader
-    follower_timeout_.setDeadline(500);
-  } else {
-    assert(senderType == token::ServerType::WORKER);
-
-    task_schedule_.workerPing(senderIndex);
-  }
+  task_schedule_.workerPing(workerIndex, runningTaskIds);
 }
 
 std::future<std::pair<bool, uint64_t>>

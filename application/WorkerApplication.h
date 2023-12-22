@@ -42,7 +42,7 @@ namespace application {
 
 class WorkerServiceImpl : public api::WorkerService::CallbackService {
 public:
-  explicit WorkerServiceImpl(uint64_t raftSize, uint64_t workerIndex) {}
+  explicit WorkerServiceImpl(uint64_t raftSize, uint64_t workerIndex);
 
   ServerUnaryReactor* ExecuteTask(CallbackServerContext* context,
                                   const ExecuteTaskRequest* request,
@@ -55,6 +55,20 @@ public:
   ServerUnaryReactor* QueryTaskStatus(CallbackServerContext* context,
                                       const QueryTaskStatusRequest* request,
                                       QueryTaskStatusReply* reply) override;
+
+private:
+  std::mutex mux_;
+
+  const std::vector<std::unique_ptr<RaftService::Stub>> raft_stubs_;
+  stub::PingStub ping_stub_;
+
+  absl::flat_hash_set<uint64_t> running_task_ids_;
+
+  utility::Deadliner ping_timeout_;
+  void pingTimeoutCallback();
+
+  std::vector<std::unique_ptr<RaftService::Stub>>
+  initRaftStubs(uint64_t raftSize);
 };
 
 } // namespace application

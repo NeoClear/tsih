@@ -33,7 +33,7 @@ public:
    */
   std::optional<uint64_t> findSuitableWorker();
 
-  void workerPing(uint64_t workerIndex);
+  void workerPing(uint64_t workerIndex, std::vector<uint64_t> runningTaskIds);
 
 private:
   std::mutex mux_;
